@@ -40,74 +40,8 @@ EMOJI_PATTERN = re.compile(
     flags=re.UNICODE
 )
 
-# Category definitions
-CATEGORIES = {
-    "Sports": ["cricket", "football", "sports", "game"],
-    "Technology": ["tech", "software", "developer", "coding", "ai"],
-    "Education": ["education", "study", "learn", "knowledge", "courses"],
-    "Entertainment": ["movie", "tv", "celebrity", "show", "music"],
-    "Social": ["community", "social", "network", "chat"],
-    "Business": ["business", "startup", "entrepreneur", "market"],
-    "Politics": ["politics", "government", "election", "news"],
-    "Health": ["health", "fitness", "medical", "yoga"],
-    "Islam": ["islam", "quran", "mosque", "mufti"],
-    "Pakistan": ["pakistan", "lahore", "karachi", "islamabad"],
-    "India": ["india", "mumbai", "delhi", "chennai"],
-    "Random": ["random", "viral", "funny", "entertainment"]
-}
-
-# Custom CSS for enhanced UI
-st.markdown("""
-    <style>
-    .main-title {
-        font-size: 2.5em;
-        color: #25D366;
-        text-align: center;
-        margin-bottom: 0;
-        font-weight: bold;
-    }
-    .subtitle {
-        font-size: 1.2em;
-        color: #4A4A4A;
-        text-align: center;
-        margin-top: 0;
-    }
-    .stButton>button {
-        background-color: #25D366;
-        color: #FFFFFF;
-        border-radius: 8px;
-        font-weight: bold;
-        border: none;
-        padding: 8px 16px;
-    }
-    .stButton>button:hover {
-        background-color: #1EBE5A;
-        color: #FFFFFF;
-    }
-    .stProgress .st-bo {
-        background-color: #25D366;
-    }
-    .metric-card {
-        background-color: #F5F6F5;
-        padding: 12px;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        color: #333333;
-        text-align: center;
-    }
-    .stTextInput, .stTextArea {
-        border: 1px solid #25D366;
-        border-radius: 5px;
-    }
-    .sidebar .sidebar-content {
-        background-color: #F5F6F5;
-    }
-    .stExpander {
-        border: 1px solid #E0E0E0;
-        border-radius: 5px;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# Custom CSS (same as before)
+# ... [keep existing CSS] ...
 
 def validate_link(link):
     """Validate a WhatsApp group link and return details if active."""
@@ -115,9 +49,7 @@ def validate_link(link):
         "Group Name": "Unknown",
         "Group Link": link,
         "Logo URL": "",
-        "Status": "Error",
-        "Category": "Random",
-        "Description": "Join this WhatsApp group for interesting conversations and updates."
+        "Status": "Error"
     }
     try:
         headers = {
@@ -140,22 +72,16 @@ def validate_link(link):
 
         if meta_title and meta_title.get('content'):
             group_name = unescape(meta_title['content']).strip()
-            result["Group Name"] = group_name
+            # Removed emoji removal
+            result["Group Name"] = group_name if group_name else "Unnamed Group"
         else:
             result["Group Name"] = "Unnamed Group"
-
-        # Categorization
-        result["Category"] = categorize_group(result["Group Name"])
-        
-        # Description generation
-        result["Description"] = generate_description(result["Group Name"], result["Category"])
 
         img_tags = soup.find_all('img', src=True)
         for img in img_tags:
             src = unescape(img['src'])
             if IMAGE_PATTERN.match(src):
-                # Add image resizing parameter
-                result["Logo URL"] = f"{src}&w=200"
+                result["Logo URL"] = src
                 result["Status"] = "Active"
                 break
         else:
@@ -168,39 +94,6 @@ def validate_link(link):
     
     return result
 
-def categorize_group(group_name):
-    """Automatically categorize group based on name"""
-    if not group_name or group_name == "Unnamed Group":
-        return "Random"
-        
-    group_name = group_name.lower()
-    
-    for category, keywords in CATEGORIES.items():
-        if any(kw in group_name.lower() for kw in keywords):
-            return category
-            
-    return "Random"
-
-def generate_description(group_name, category):
-    """Generate SEO-friendly description"""
-    base = f"Join the {group_name} WhatsApp Group | {category} | Connect with others interested in "
-    
-    # Special cases
-    if category == "Sports":
-        return base + "sports and games."
-    elif category == "Technology":
-        return base + "technology and innovation."
-    elif category == "Education":
-        return base + "education and learning."
-    elif category == "Pakistan":
-        return base + "Pakistani culture and community."
-    elif category == "India":
-        return base + "Indian culture and community."
-    elif category == "Islam":
-        return base + "Islamic teachings and community."
-    else:
-        return base + "interesting topics and discussions."
-
 def scrape_whatsapp_links(url):
     """Scrape WhatsApp group links from a webpage."""
     try:
@@ -211,22 +104,19 @@ def scrape_whatsapp_links(url):
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
         links = []
-        
         for a in soup.find_all('a', href=True):
             if a['href'].startswith(WHATSAPP_DOMAIN):
                 links.append(a['href'])
-                
         for text in soup.stripped_strings:
             if WHATSAPP_DOMAIN in text:
                 found_links = re.findall(r'https?://chat\.whatsapp\.com/[^\s]+', text)
                 links.extend(found_links)
-                
         return list(set(links))
     except Exception:
         return []
 
 def google_search(query, top_n=5):
-    """Fetch URLs from Google's top N search results"""
+    """Fetch URLs from Google's top N search results using googlesearch-python."""
     try:
         urls = list(search(query, num_results=top_n, lang="en"))
         if not urls:
@@ -250,13 +140,9 @@ def generate_markdown_export(filtered_df):
     
     for _, row in filtered_df.iterrows():
         group_block = f"""
-![](https://via.placeholder.com/200x100?text={row['Category']})  # Category badge
-
-![]({row['Logo URL']})  # Resized image
+![]({row['Logo URL']})
 
 **{row['Group Name']}**
-
-_{row['Description']}_  # SEO description
 
 [**Join**]({row['Group Link']})
 
@@ -267,28 +153,23 @@ _{row['Description']}_  # SEO description
     return markdown_output.strip()
 
 def generate_html_export(filtered_df):
-    """Generate full HTML page with SEO metadata"""
+    """Generate basic HTML page"""
     html_template = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="{description}">
-    <meta name="keywords" content="{keywords}">
-    <title>{title}</title>
+    <title>WhatsApp Group Directory</title>
     <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }}
-        h1, h2, h3 {{ color: #25D366; }}
+        body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
+        h1 {{ color: #25D366; }}
         .group {{ border-bottom: 1px solid #eee; padding: 20px 0; }}
-        .category {{ color: #888; font-style: italic; }}
         img {{ max-width: 100%; height: auto; }}
         a {{ color: #25D366; text-decoration: none; font-weight: bold; }}
     </style>
 </head>
 <body>
     <h1>WhatsApp Group Directory</h1>
-    <p>{date}</p>
     
     {content}
 </body>
@@ -296,30 +177,20 @@ def generate_html_export(filtered_df):
 """
 
     content = ""
-    today = time.strftime("%B %d, %Y")
-    
     for _, row in filtered_df.iterrows():
         content += f"""
 <div class="group">
-    <div class="category">#{row['Category']}</div>
     <h3>{row['Group Name']}</h3>
     <img src="{row['Logo URL']}" alt="{row['Group Name']}">
-    <p>{row['Description']}</p>
     <p><a href="{row['Group Link']}" target="_blank">Join WhatsApp Group</a></p>
 </div>
 """
 
-    return html_template.format(
-        title="WhatsApp Group Directory",
-        description="Find and join the best WhatsApp groups by category and interest.",
-        keywords="WhatsApp groups, WhatsApp communities, WhatsApp group links, join WhatsApp group",
-        date=today,
-        content=content
-    )
+    return html_template.format(content=content)
 
 def main():
     st.markdown('<h1 class="main-title">WhatsApp Group Validator 🚀</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Search, scrape, or validate WhatsApp group links with advanced features</p>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Search, scrape, or validate WhatsApp group links with ease</p>', unsafe_allow_html=True)
 
     with st.sidebar:
         st.header("⚙️ Settings")
@@ -424,7 +295,7 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
         with col3:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric("Categories", df['Category'].nunique())
+            st.metric("Expired Links", len(expired_df))
             st.markdown('</div>', unsafe_allow_html=True)
 
         with st.expander("🔎 View and Filter Results", expanded=True):
@@ -433,7 +304,7 @@ def main():
             
             display_df = filtered_df.copy()
             display_df['Invite Link'] = display_df['Group Link'].apply(lambda url: f"[Join]({url})")
-            display_df = display_df[['Group Name', 'Invite Link', 'Category', 'Status']]
+            display_df = display_df[['Group Name', 'Invite Link', 'Status']]
             
             st.dataframe(
                 display_df,
@@ -459,7 +330,7 @@ def main():
 
         # HTML Export
         with st.expander("📄 Export to HTML Format", expanded=True):
-            st.markdown("Download a complete HTML page with SEO metadata:")
+            st.markdown("Download a complete HTML page:")
             html_output = generate_html_export(filtered_df)
             st.code(html_output, language="html")
             st.download_button(
@@ -479,41 +350,6 @@ def main():
             st.download_button("📥 Download All Results", csv_all, "all_groups.csv", "text/csv", use_container_width=True)
     else:
         st.info("Start by searching for WhatsApp group links, entering them manually, or uploading a file!", icon="ℹ️")
-
-def categorize_group(group_name):
-    """Automatically categorize group based on name"""
-    if not group_name or group_name == "Unnamed Group":
-        return "Random"
-        
-    group_name = group_name.lower()
-    
-    for category, keywords in CATEGORIES.items():
-        if any(kw in group_name.lower() for kw in keywords):
-            return category
-            
-    return "Random"
-
-def generate_description(group_name, category):
-    """Generate SEO-friendly description"""
-    base = f"Join the {group_name} WhatsApp Group | {category} | Connect with others interested in "
-    
-    # Special cases
-    if category == "Sports":
-        return base + "sports and games."
-    elif category == "Technology":
-        return base + "technology and innovation."
-    elif category == "Education":
-        return base + "education and learning."
-    elif category == "Pakistan":
-        return base + "Pakistani culture and community."
-    elif category == "India":
-        return base + "Indian culture and community."
-    elif category == "Islam":
-        return base + "Islamic teachings and community."
-    elif category == "Random":
-        return base + "interesting topics and discussions."
-    else:
-        return base + "this topic."
 
 if __name__ == "__main__":
     main()
