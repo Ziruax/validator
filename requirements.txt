@@ -1,5 +1,5 @@
-streamlit==1.24.0
-pandas==2.0.3
-requests==2.31.0
-beautifulsoup4==4.12.2
-googlesearch-python==1.2.7
+streamlit
+pandas
+requests
+beautifulsoup4
+googlesearch-python
