@@ -4,11 +4,22 @@ import requests
 from html import unescape
 from bs4 import BeautifulSoup
 import re
-# import time # Not directly used now, googlesearch handles its own pause
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from googlesearch import search as google_search_lib # Alias from your working example
+from googlesearch import search as google_search_lib
 from urllib.parse import urljoin, urlparse, urlencode, parse_qs
 import io
+from fake_useragent import UserAgent # <-- Import fake-useragent
+
+# --- Initialize UserAgent ---
+try:
+    ua = UserAgent()
+except Exception as e: # Fallback in case fake-useragent has issues fetching UAs (e.g., network)
+    st.error(f"Could not initialize Fake UserAgent, using a default. Error: {e}")
+    class FallbackUserAgent:
+        def random(self):
+            return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    ua = FallbackUserAgent()
+
 
 # --- Streamlit Configuration & Constants ---
 st.set_page_config(
@@ -19,22 +30,8 @@ st.set_page_config(
 )
 
 WHATSAPP_DOMAIN = "https://chat.whatsapp.com/"
-# Stricter image pattern from your working example
 IMAGE_PATTERN_VALIDATE = re.compile(r'https://pps\.whatsapp\.net/.*\.jpg\?[^&]*&[^&]+')
-# Emoji pattern from your working example (for validate_link_legacy if used, but we use improved validate_link)
-EMOJI_PATTERN_LEGACY = re.compile(
-    "["
-    u"\U0001F600-\U0001F64F"  # emoticons
-    # ... (rest of your emoji pattern if you want to ensure it's identical for some legacy function)
-    "]+",
-    flags=re.UNICODE
-)
-
-
-HEADERS_GLOBAL = { # Global headers for requests, can be overridden
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9"
-}
+# No longer need HEADERS_GLOBAL to be a fixed constant if we generate UA per request
 MAX_VALIDATION_WORKERS = 10
 
 # --- Custom CSS ---
@@ -55,6 +52,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Helper Functions ---
+def get_random_headers():
+    """Returns headers with a random User-Agent."""
+    return {
+        "User-Agent": ua.random, # Get a new random UA
+        "Accept-Language": "en-US,en;q=0.9"
+    }
 
 def append_query_param(url, param_name, param_value):
     if not url: return ""
@@ -66,47 +69,43 @@ def append_query_param(url, param_name, param_value):
 
 # --- User's exact scrape_whatsapp_links function for Google Search results ---
 def scrape_whatsapp_links_user_method(url):
-    """Scrape WhatsApp group links from a webpage. (User's provided method)"""
+    """Scrape WhatsApp group links from a webpage. (User's provided method, now with fake UA)"""
     try:
-        headers = { # Specific headers from user's example
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        # This function uses its own requests.get(), not a session
-        response = requests.get(url, headers=headers, timeout=10)
-        # No explicit encoding set, let requests/bs4 handle
+        # --- Use fake-useragent here ---
+        current_headers = get_random_headers()
+        response = requests.get(url, headers=current_headers, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        links_found = [] # Use a list then convert to set for order preservation (though not strictly needed here)
-        # 1. From <a> tags
+        links_found = []
         for a in soup.find_all('a', href=True):
             if a['href'].startswith(WHATSAPP_DOMAIN):
-                links_found.append(a['href'].split('?')[0]) # Normalize
+                links_found.append(a['href'].split('?')[0])
         
-        # 2. From text content
-        for text in soup.stripped_strings: # User's method
+        for text in soup.stripped_strings:
             if WHATSAPP_DOMAIN in text:
-                # User's regex for text search
                 found_in_text = re.findall(r'https?://chat\.whatsapp\.com/[^\s]+', text)
                 for flink in found_in_text:
-                    links_found.append(flink.split('?')[0]) # Normalize
+                    links_found.append(flink.split('?')[0])
         
-        return list(set(links_found)) # Deduplicate
-    except Exception: # Broad exception catch as in user's example
-        # Optionally log this error or notify user in a non-blocking way
-        # st.sidebar.warning(f"User method scrape fail for {url[:30]}", icon="🕸️")
+        return list(set(links_found))
+    except Exception:
         return []
 
 
 # --- Enhanced scraping function for "Specific Page" and "Entire Website" ---
 def scrape_whatsapp_links_enhanced(url, session):
-    """Scrape WhatsApp group links from a webpage, using session and more detailed error handling."""
+    """Scrape WhatsApp group links from a webpage, using session and fake UA."""
     links = set()
     try:
         url_parse_for_error = urlparse(url)
         netloc_for_error = url_parse_for_error.netloc if url_parse_for_error.netloc else url[:30]
-
-        response = session.get(url, headers=HEADERS_GLOBAL, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser') # Let BS4 handle encoding
+        # --- Use fake-useragent here for the session's headers ---
+        # Note: Session headers are typically set once. For true per-request UA with session,
+        # you'd pass headers to session.get() directly.
+        # However, many sites are fine with the same UA for a session.
+        # For max randomness, pass headers=get_random_headers() to session.get()
+        response = session.get(url, headers=get_random_headers(), timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
         
         for a_tag in soup.find_all('a', href=True):
             href = a_tag.get('href')
@@ -127,10 +126,12 @@ def scrape_whatsapp_links_enhanced(url, session):
     return list(links)
 
 
-def validate_link(link): # Using the robust validation from previous enhanced version
+def validate_link(link):
     result = {"Group Name": "Unknown", "Group Link": link, "Logo URL": "", "Status": "Error"}
     try:
-        response = requests.get(link, headers=HEADERS_GLOBAL, timeout=10, allow_redirects=True)
+        # --- Use fake-useragent here ---
+        current_headers = get_random_headers()
+        response = requests.get(link, headers=current_headers, timeout=10, allow_redirects=True)
         response.encoding = 'utf-8'
         if response.status_code != 200:
             result["Status"] = f"HTTP Error {response.status_code}"; return result
@@ -143,7 +144,7 @@ def validate_link(link): # Using the robust validation from previous enhanced ve
             group_name = unescape(meta_title['content']).strip()
             result["Group Name"] = group_name or "Unnamed Group"
         else:
-            title_tag = soup.find('h3') # Fallback
+            title_tag = soup.find('h3')
             result["Group Name"] = unescape(title_tag.get_text(strip=True)) or "Unnamed Group" if title_tag else "Unnamed Group"
         
         meta_image = soup.find('meta', property='og:image')
@@ -151,7 +152,7 @@ def validate_link(link): # Using the robust validation from previous enhanced ve
             img_src = unescape(meta_image['content'])
             if IMAGE_PATTERN_VALIDATE.match(img_src): result["Logo URL"] = img_src
         
-        if not result["Logo URL"]: # Fallback to img tags
+        if not result["Logo URL"]:
             img_tags = soup.find_all('img', src=True)
             for img in img_tags:
                 src = unescape(img['src'])
@@ -163,7 +164,7 @@ def validate_link(link): # Using the robust validation from previous enhanced ve
             result["Status"] = "Active"
         elif "link is invalid" in page_text_lower or "link has been revoked" in page_text_lower or "link expired" in page_text_lower:
             result["Status"] = "Expired/Invalid"
-        else: # Default heuristic
+        else:
             result["Status"] = "Active" if result["Logo URL"] or result["Group Name"] not in ["Unknown", "Unnamed Group"] else "Expired/Invalid"
             
     except requests.exceptions.Timeout: result["Status"] = "Timeout Error"
@@ -171,12 +172,12 @@ def validate_link(link): # Using the robust validation from previous enhanced ve
     except Exception: result["Status"] = "Parsing Error"
     return result
 
-# User's google_search function (from their working example, for num_results parameter)
 def perform_google_search_user_method(query, top_n=5, pause_duration=2.0):
-    """Fetch URLs from Google's top N search results using googlesearch-python. (User's style)"""
     try:
         st.sidebar.info(f"Googling (user method) '{query}' (top {top_n}, pause: {pause_duration}s)...")
-        # The key is `num_results` as in user's code. `search` is already imported as `google_search_lib`
+        # googlesearch library uses its own User-Agent rotation internally for Google searches.
+        # We don't directly pass our fake-useragent to it, as it might override the library's mechanism.
+        # The benefit of fake-useragent is for scraping the *result pages*, not the Google search itself.
         urls = list(google_search_lib(query, num_results=top_n, lang="en", pause=pause_duration))
         if not urls:
             st.warning(f"No search results found for the query '{query}'. Try refining your search terms.")
@@ -200,6 +201,8 @@ def crawl_website(start_url, max_depth=3, max_pages=100):
     base_domain = parsed_start_url.netloc
     urls_to_visit, visited_urls, scraped_content_urls = [(start_url, 0)], set(), set()
     session = requests.Session()
+    # For crawler, session headers can be set once, or per request for more variability
+    # session.headers.update(get_random_headers()) # Option 1: Set once for the session
     with st.spinner(f"Crawling {base_domain} (D:{max_depth}, P:{max_pages})..."):
         page_count = 0
         while urls_to_visit and page_count < max_pages:
@@ -208,7 +211,8 @@ def crawl_website(start_url, max_depth=3, max_pages=100):
             visited_urls.add(current_url)
             st.sidebar.text(f"Crawl (D:{depth}, P:{page_count+1}): {current_url[:60]}...")
             try:
-                response = session.get(current_url, headers=HEADERS_GLOBAL, timeout=7)
+                # Option 2: Set per request (more random, slightly more overhead)
+                response = session.get(current_url, headers=get_random_headers(), timeout=7)
                 response.raise_for_status()
                 scraped_content_urls.add(current_url); page_count += 1
                 if depth < max_depth:
@@ -234,8 +238,8 @@ def load_links_from_text_file(uploaded_file):
             for col in df.columns:
                 if df[col].astype(str).str.contains(WHATSAPP_DOMAIN, case=False, na=False).any():
                     return df[col].dropna().astype(str).tolist()
-            return df.iloc[:, 0].dropna().astype(str).tolist() # Fallback
-        else: # TXT file
+            return df.iloc[:, 0].dropna().astype(str).tolist()
+        else:
             return [line.decode().strip() for line in uploaded_file.readlines() if line.strip()]
     except Exception as e:
         st.error(f"Error reading file {uploaded_file.name}: {e}")
@@ -259,8 +263,7 @@ def generate_markdown_output(active_results_df):
         logo_url = row.get("Logo URL", "")
         group_name = row.get("Group Name", "N/A")
         group_link = row.get("Group Link", "")
-        # --- LOGO SIZE REDUCED TO 50px ---
-        logo_md = f"![Logo]({append_query_param(logo_url, 'w', '50')})" if logo_url else " "
+        logo_md = f"![Logo]({append_query_param(logo_url, 'w', '50')})" if logo_url else " " # Size 50px
         link_md = f"[Join Group]({group_link})"
         safe_group_name = group_name.replace("|", "|")
         markdown_lines.append(f"| {logo_md} | {safe_group_name} | {link_md} |")
@@ -282,15 +285,14 @@ def main():
             "Enter Links Manually (for Validation)", "Upload Link File (TXT/CSV for Validation)"
         ], index=0)
 
-        # --- GOOGLE RESULTS SLIDER 1-10 ---
-        google_results_top_n = 5 # Default, matching user's original
+        google_results_top_n = 5
         google_search_pause_seconds = 2.5
         crawl_depth, max_crawl_pages = 2, 50
 
         if "Google" in input_method:
-            google_results_top_n = st.slider( # Renamed variable for clarity
+            google_results_top_n = st.slider(
                 "Number of top Google results to process (per keyword):",
-                min_value=1, max_value=10, value=5, step=1, # Range 1-10, default 5
+                min_value=1, max_value=10, value=5, step=1,
                 help="Number of Google search result pages to analyze."
             )
             google_search_pause_seconds = st.slider(
@@ -300,7 +302,7 @@ def main():
         if "Entire Website" in input_method:
             st.warning("⚠️ Extensive website crawling can be very slow. Use with caution.", icon="🚨")
             crawl_depth = st.slider("Max Crawl Depth:", min_value=0, max_value=10, value=2)
-            max_crawl_pages = st.slider("Max Pages to Crawl:", min_value=1, max_value=1000, value=50) # High max for "unlimited" feel
+            max_crawl_pages = st.slider("Max Pages to Crawl:", min_value=1, max_value=1000, value=50)
         
         if st.button("🗑️ Clear All Results & Cache", use_container_width=True, key="clear_all"):
             st.session_state.results, st.session_state.processed_links_in_session = [], set()
@@ -309,8 +311,6 @@ def main():
     all_scraped_links = set()
     st.subheader(f"🚀 Action Zone: {input_method}")
     
-    # Create one session for methods that benefit from it (Specific Page, Entire Website's internal scraping)
-    # Google search parts will use direct requests via scrape_whatsapp_links_user_method
     enhanced_session = requests.Session() 
     try:
         if input_method == "Search & Scrape from Google (Single Keyword)":
@@ -319,16 +319,12 @@ def main():
                 if not keyword: st.warning("Please enter a search query.")
                 else:
                     search_page_urls = perform_google_search_user_method(
-                        keyword, 
-                        top_n=google_results_top_n, # Use the 1-10 slider value
-                        pause_duration=google_search_pause_seconds
-                    )
+                        keyword, top_n=google_results_top_n, pause_duration=google_search_pause_seconds)
                     if search_page_urls:
                         st.info(f"Found {len(search_page_urls)} pages. Scraping with user method...")
                         prog_bar = st.progress(0)
                         for i, page_url in enumerate(search_page_urls):
-                            # --- CALLING USER'S SCRAPING METHOD ---
-                            links_from_page = scrape_whatsapp_links_user_method(page_url)
+                            links_from_page = scrape_whatsapp_links_user_method(page_url) # Uses fake UA
                             all_scraped_links.update(links_from_page)
                             prog_bar.progress((i+1)/len(search_page_urls))
                         st.success("Google page scraping complete.")
@@ -347,8 +343,7 @@ def main():
                             kw, top_n=google_results_top_n, pause_duration=google_search_pause_seconds)
                         if search_page_urls:
                             for page_url in search_page_urls:
-                                # --- CALLING USER'S SCRAPING METHOD ---
-                                links_from_page = scrape_whatsapp_links_user_method(page_url)
+                                links_from_page = scrape_whatsapp_links_user_method(page_url) # Uses fake UA
                                 all_scraped_links.update(links_from_page)
                         prog.progress((i + 1) / len(keywords))
                     stat_txt.success("Bulk processing (user method) complete.")
@@ -360,8 +355,7 @@ def main():
                     st.warning("Please enter a valid URL.")
                 else:
                     with st.spinner(f"Scraping {page_url} (enhanced method)..."):
-                        # --- CALLING ENHANCED SCRAPING METHOD ---
-                        links_from_page = scrape_whatsapp_links_enhanced(page_url, enhanced_session)
+                        links_from_page = scrape_whatsapp_links_enhanced(page_url, enhanced_session) # Uses fake UA via session
                         all_scraped_links.update(links_from_page)
                     st.success(f"Scraping of {page_url} complete.")
 
@@ -370,7 +364,6 @@ def main():
             if st.button("🌐 Crawl & Scrape (Enhanced Method)", use_container_width=True):
                 if not domain_url: st.warning("Please enter a domain URL.")
                 else:
-                    # crawl_website returns its own session, use that for scraping its found pages
                     pages_to_scrape, crawl_used_session = crawl_website(domain_url, max_depth=crawl_depth, max_pages=max_crawl_pages)
                     try:
                         if pages_to_scrape:
@@ -378,17 +371,16 @@ def main():
                             prog, stat_txt = st.progress(0), st.empty()
                             for i, p_url in enumerate(pages_to_scrape):
                                 stat_txt.text(f"Scraping: {p_url[:60]}... ({i+1}/{len(pages_to_scrape)})")
-                                # --- CALLING ENHANCED SCRAPING METHOD with CRAWLER'S SESSION ---
-                                links_from_page = scrape_whatsapp_links_enhanced(p_url, crawl_used_session)
+                                links_from_page = scrape_whatsapp_links_enhanced(p_url, crawl_used_session) # Uses fake UA via session
                                 all_scraped_links.update(links_from_page)
                                 prog.progress((i + 1) / len(pages_to_scrape))
                             stat_txt.success("Website scraping complete.")
                         else: st.warning("No pages found/scraped from domain.")
                     finally:
-                        crawl_used_session.close() # Close crawler's session
+                        if 'crawl_used_session' in locals() and crawl_used_session: # Ensure it exists
+                            crawl_used_session.close()
 
         elif input_method == "Enter Links Manually (for Validation)":
-            # ... (same as before)
             links_text = st.text_area("Enter WhatsApp Links (one per line):", height=150, placeholder=f"{WHATSAPP_DOMAIN}LINK1\n{WHATSAPP_DOMAIN}LINK2")
             if st.button("✍️ Validate Manual Links", use_container_width=True):
                 raw_links = [line.strip() for line in links_text.split('\n') if line.strip().startswith(WHATSAPP_DOMAIN)]
@@ -396,7 +388,6 @@ def main():
                 else: all_scraped_links.update(raw_links)
 
         elif input_method == "Upload Link File (TXT/CSV for Validation)":
-            # ... (same as before)
             uploaded_file = st.file_uploader("Upload TXT/CSV with WhatsApp links", type=["txt", "csv"])
             if uploaded_file and st.button("📤 Validate File Links", use_container_width=True):
                 raw_links = load_links_from_text_file(uploaded_file)
@@ -404,9 +395,10 @@ def main():
                 if not valid_whatsapp_links: st.warning("No valid WhatsApp links in file.")
                 else: all_scraped_links.update(valid_whatsapp_links)
     finally:
-        enhanced_session.close() # Close the main enhanced_session
+        if 'enhanced_session' in locals() and enhanced_session: # Ensure it exists
+            enhanced_session.close()
 
-    # --- Unified Validation Step --- (same as before)
+    # --- Unified Validation Step ---
     if all_scraped_links:
         links_to_validate_now = list(all_scraped_links - st.session_state.processed_links_in_session)
         if not links_to_validate_now:
@@ -416,7 +408,7 @@ def main():
             prog_val, stat_val = st.progress(0), st.empty()
             new_results = []
             with ThreadPoolExecutor(max_workers=MAX_VALIDATION_WORKERS) as executor:
-                future_to_link = {executor.submit(validate_link, link): link for link in links_to_validate_now}
+                future_to_link = {executor.submit(validate_link, link): link for link in links_to_validate_now} # validate_link now uses fake UA
                 for i, future in enumerate(as_completed(future_to_link)):
                     link, result = future_to_link[future], future.result()
                     new_results.append(result)
@@ -426,7 +418,7 @@ def main():
             st.session_state.results.extend(new_results)
             stat_val.success(f"Validation complete for {len(links_to_validate_now)} new links!")
 
-    # --- Display Results --- (same as before, with markdown logo size change already handled in generate_markdown_output)
+    # --- Display Results ---
     if st.session_state.results:
         df_results = pd.DataFrame(st.session_state.results).drop_duplicates(subset=['Group Link'], keep='first')
         st.session_state.results = df_results.to_dict('records')
@@ -451,10 +443,10 @@ def main():
         
         st.subheader("📋 Markdown Export (Active Groups)")
         if not active_df.empty:
-            md_data = generate_markdown_output(active_df) # Logo size 50px handled here
+            md_data = generate_markdown_output(active_df)
             with st.expander("Copy or Download Markdown", expanded=True):
-                st.text_area("Markdown Table (Copy this):", value=md_data, height=250, key="md_area", help="Ctrl+A then Ctrl+C")
-                st.download_button("📥 Download Markdown (.md)", md_data, "active_groups.md", "text/markdown", use_container_width=True, key="dl_md")
+                st.text_area("Markdown Table (Copy this):", value=md_data, height=250, key="md_area_v3", help="Ctrl+A then Ctrl+C")
+                st.download_button("📥 Download Markdown (.md)", md_data, "active_groups.md", "text/markdown", use_container_width=True, key="dl_md_v3")
             with st.expander("📋 Markdown Preview", expanded=False): st.markdown(md_data, unsafe_allow_html=True)
         else: st.info("No active groups for Markdown output.")
     else: st.info("🏁 Start by choosing an input method and providing data.", icon="ℹ️")
@@ -462,4 +454,10 @@ def main():
 if __name__ == "__main__":
     try: import openpyxl
     except ImportError: st.error("Lib 'openpyxl' for Excel missing. `pip install openpyxl`"); st.stop()
+    # Check for fake_useragent at startup
+    try:
+        from fake_useragent import UserAgent
+        UserAgent() # Try to initialize
+    except Exception as e:
+        st.warning(f"Could not initialize fake-useragent library. Scraping might be less effective. Error: {e}. Try `pip install fake-useragent`.", icon="⚠️")
     main()
