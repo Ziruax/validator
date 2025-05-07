@@ -384,7 +384,7 @@ def generate_markdown_output(active_results_df):
         # Ensure group name doesn't break Markdown table if it contains pipes
         safe_group_name = group_name.replace("|", "|")
         # Use "Join" for the button text as per visual example
-        link_md = f'<a href="{group_link}" class="join-button-md" target="_blank" rel="noopener noreferrer">Join Group</a>'
+        link_md = f'<a href="{group_link}" class="join-button-md" target="_blank" rel="noopener noreferrer">Join</a>'
         markdown_lines.append(f"| {logo_md} | {safe_group_name} | {link_md} |")
     return "\n".join(markdown_lines)
 
