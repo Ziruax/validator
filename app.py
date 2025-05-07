@@ -52,7 +52,6 @@ except Exception as e:
         }
 
 # --- Threading for Validation ---
-# Import ThreadPoolExecutor here, ensure it's available
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -108,8 +107,10 @@ st.markdown("""
 }
 
 /* Sidebar background */
-/* Targeting the correct Streamlit class for the sidebar content area */
-.st-emotion-cache-1v3rj08 { /* This class name is highly variable and might change */
+/* Note: The class name .st-emotion-cache-cnjvow might change in future Streamlit versions. */
+/* A more stable way might require JS injection, but this works for now. */
+/* Inspect the element in browser dev tools if sidebar styling breaks. */
+.st-emotion-cache-cnjvow, .st-emotion-cache-1v3rj08 { /* Added another common class name */
     background-color: #F5F6F5;
 }
 
@@ -294,7 +295,7 @@ def load_links_from_file(uploaded_file):
         st.error(f"Error processing file {uploaded_file.name}: {e}", icon="❌")
         return []
 
-# --- Core Logic Functions (Enhanced from v2, combined with v1 needs) ---
+# --- Core Logic Functions (Enhanced) ---
 
 def validate_link(link):
     """Validate a WhatsApp group link and return details if active, with enhanced logic."""
@@ -322,7 +323,8 @@ def validate_link(link):
         # Check if the final URL is still a WhatsApp invite link after redirects
         # This handles cases where links might redirect to a different site (e.g., landing page)
         if WHATSAPP_DOMAIN not in response.url:
-            result["Status"] = f"Redirected Away ({response.urlparse(response.url).netloc or 'Unknown Site'})"
+            final_netloc = urlparse(response.url).netloc or 'Unknown Site'
+            result["Status"] = f"Redirected Away ({final_netloc})"
             return result
 
         # Parse HTML content
@@ -357,7 +359,7 @@ def validate_link(link):
              for tag in potential_name_tags:
                  text = tag.get_text().strip()
                  # Basic checks: not too short, not generic WhatsApp text
-                 if text and len(text) > 2 and text.lower() != "whatsapp group invite":
+                 if text and len(text) > 2 and text.lower() not in ["whatsapp group invite", "whatsapp"]:
                      result["Group Name"] = text
                      group_name_found = True
                      break # Found a potential name
@@ -473,14 +475,19 @@ def google_search_and_scrape(query, top_n=5, pause_duration=2.0):
         scrape_prog_bar = st.progress(0)
         scrape_status_text = st.empty()
 
-        for idx, url in enumerate(search_page_urls):
-            scrape_status_text.text(f"Scraping links from page {idx + 1}/{len(search_page_urls)}: {url[:60]}...")
-            # Use the general scrape function without a session here, as we process page by page
-            links_from_page = scrape_whatsapp_links_from_page(url)
-            # Filter for only WhatsApp domain links immediately
-            whatsapp_only_links = {link for link in links_from_page if link.startswith(WHATSAPP_DOMAIN)}
-            all_links.update(whatsapp_only_links)
-            scrape_prog_bar.progress((idx + 1) / len(search_page_urls))
+        # Use a Session for scraping the found Google result pages for efficiency
+        scrape_session = requests.Session()
+        try:
+            for idx, url in enumerate(search_page_urls):
+                scrape_status_text.text(f"Scraping links from page {idx + 1}/{len(search_page_urls)}: {url[:60]}...")
+                # Use the general scrape function with the session
+                links_from_page = scrape_whatsapp_links_from_page(url, session=scrape_session)
+                # Filter for only WhatsApp domain links immediately
+                whatsapp_only_links = {link for link in links_from_page if link.startswith(WHATSAPP_DOMAIN)}
+                all_links.update(whatsapp_only_links)
+                scrape_prog_bar.progress((idx + 1) / len(search_page_urls))
+        finally:
+             scrape_session.close() # Ensure the session is closed
 
         scrape_status_text.success(f"Finished scraping webpages. Found {len(all_links)} unique WhatsApp links.")
         return list(all_links)
@@ -492,7 +499,9 @@ def google_search_and_scrape(query, top_n=5, pause_duration=2.0):
 
 def crawl_website(start_url, max_depth=2, max_pages=50):
     """Crawls a website to find pages, then scrapes links from those pages."""
-    if not start_url.strip(): return set() # Handle empty input
+    scraped_whatsapp_links = set() # Stores unique WhatsApp links found
+
+    if not start_url.strip(): return scraped_whatsapp_links # Handle empty input
 
     # Ensure URL has scheme, default to https
     if not start_url.startswith(('http://', 'https://')):
@@ -503,92 +512,107 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
     # Basic validation for the start URL
     if not parsed_start_url.netloc:
         st.sidebar.error(f"Invalid start URL provided: {start_url}", icon="🚫")
-        return set() # Return empty set if URL is invalid
+        return scraped_whatsapp_links # Return empty set if URL is invalid
 
     base_domain = parsed_start_url.netloc.replace('www.', '') # Use root domain for comparison
     # Use sets for efficiency in checking visited/to_visit
-    urls_to_visit = {(start_url, 0)} # Store as (url, depth) tuples
+    urls_to_visit = set() # Stores (normalized_url, depth) tuples added to queue
     visited_urls = set() # Stores normalized URLs that have been requested
-    scraped_whatsapp_links = set() # Stores unique WhatsApp links found
+    queue_list = [] # Use a list to maintain FIFO order for BFS
 
-    # Add normalized start URL path to visited to avoid immediate re-crawl
-    normalized_start_path = urljoin(start_url, parsed_start_url.path or '/')
-    visited_urls.add(normalized_start_path)
+    # Add initial URL to queue and visited set
+    initial_normalized_url = urljoin(start_url, parsed_start_url.path or '/')
+    queue_list.append((start_url, 0))
+    urls_to_visit.add((start_url, 0)) # Track the tuple in queue
 
-    session = requests.Session() # Use a session for potentially better performance/connection reuse during crawl
+    session = requests.Session() # Use a session for crawl requests
     st.sidebar.info(f"Starting crawl on `{base_domain}` (Max Depth: {max_depth}, Max Pages: {max_pages})...")
 
     page_count = 0
-    queue_list = [(start_url, 0)] # Use a list to maintain FIFO order for BFS
-
-    with st.spinner(f"Crawling {base_domain}..."):
-        while queue_list and page_count < max_pages:
-            current_url, depth = queue_list.pop(0) # Get next URL from the queue
-
-            # Normalize current URL for consistent visited check
-            normalized_current_url = urljoin(current_url, urlparse(current_url).path or '/')
-
-            # Check visited status again after popping (might have been added while in queue)
-            if normalized_current_url in visited_urls or depth > max_depth:
-                # st.sidebar.markdown(f"<span style='color:#888; font-size:0.8em;'>Skipping queue: {normalized_current_url[:50]}... (Visited/Depth)</span>", unsafe_allow_html=True)
-                continue # Skip if already visited or beyond max depth
-
-            visited_urls.add(normalized_current_url) # Mark as visited before requesting
-
-            if page_count >= max_pages: break # Check limit before request
-
-            st.sidebar.text(f"Crawl (D:{depth}, P:{page_count+1}): {current_url[:60]}...")
-
-            try:
-                response = session.get(current_url, headers=get_random_headers_general(), timeout=10)
-                response.raise_for_status() # Raise HTTPError for bad responses
-
-                # Check Content-Type
-                if 'text/html' not in response.headers.get('Content-Type', '').lower():
-                     st.sidebar.markdown(f"<span style='color:#888; font-size:0.8em;'>Skipping crawl: {current_url[:50]}... (Not HTML)</span>", unsafe_allow_html=True)
-                     continue # Skip non-HTML content
-
-                page_count += 1 # Only increment page count for successful HTML requests
-
-                # Scrape WhatsApp links from this page using the enhanced scraper
-                links_from_page = scrape_whatsapp_links_from_page(current_url, session=session)
-                whatsapp_only_links = {link for link in links_from_page if link.startswith(WHATSAPP_DOMAIN)}
-                scraped_whatsapp_links.update(whatsapp_only_links)
+    MAX_QUEUE_SIZE_FACTOR = 10 # Limit queue size to prevent memory issues on complex sites
+    max_queue_size = max_pages * MAX_QUEUE_SIZE_FACTOR
 
 
-                if depth < max_depth:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    for link_tag in soup.find_all('a', href=True):
-                        href = link_tag.get('href')
-                        if href:
-                            abs_url = urljoin(current_url, href)
-                            parsed_abs_url = urlparse(abs_url)
+    try: # Use a try...finally to ensure session is closed
+        with st.spinner(f"Crawling {base_domain}..."):
+            while queue_list and page_count < max_pages:
+                if len(queue_list) > max_queue_size:
+                     st.sidebar.warning(f"Crawl queue size exceeded {max_queue_size}. Stopping link discovery.", icon="❗️")
+                     queue_list = queue_list[:max_queue_size] # Trim queue if it gets too large
 
-                            # Basic checks for valid scheme, same base domain, and no fragment
-                            if parsed_abs_url.scheme in ['http', 'https'] and \
-                               parsed_abs_url.netloc.replace('www.', '') == base_domain and \
-                               not parsed_abs_url.fragment:
+                current_url, depth = queue_list.pop(0) # Get next URL from the queue
 
-                                normalized_abs_url = urljoin(abs_url, parsed_abs_url.path or '/')
-                                # Check if the normalized URL has been visited or is already in the queue
-                                if normalized_abs_url not in visited_urls and (abs_url, depth + 1) not in urls_to_visit:
-                                    queue_list.append((abs_url, depth + 1))
-                                    urls_to_visit.add((abs_url, depth + 1)) # Keep track of URLs added to queue
+                # Normalize current URL for consistent visited check
+                normalized_current_url = urljoin(current_url, urlparse(current_url).path or '/')
+
+                # Check visited status again after popping (might have been added while in queue)
+                # This is the primary check to avoid reprocessing
+                if normalized_current_url in visited_urls or depth > max_depth:
+                    continue # Skip if already visited or beyond max depth
+
+                visited_urls.add(normalized_current_url) # Mark as visited before requesting
+
+                if page_count >= max_pages: break # Check limit before request
+
+                st.sidebar.text(f"Crawl (D:{depth}, P:{page_count+1}, Q:{len(queue_list)}): {current_url[:50]}...")
+
+                try:
+                    response = session.get(current_url, headers=get_random_headers_general(), timeout=10)
+                    response.raise_for_status() # Raise HTTPError for bad responses
+
+                    # Check Content-Type
+                    if 'text/html' not in response.headers.get('Content-Type', '').lower():
+                         st.sidebar.markdown(f"<span style='color:#888; font-size:0.8em;'>Skipping crawl: {current_url[:50]}... (Not HTML)</span>", unsafe_allow_html=True)
+                         continue # Skip non-HTML content
+
+                    page_count += 1 # Only increment page count for successful HTML requests
+
+                    # Scrape WhatsApp links from this page using the enhanced scraper
+                    links_from_page = scrape_whatsapp_links_from_page(current_url, session=session)
+                    whatsapp_only_links = {link for link in links_from_page if link.startswith(WHATSAPP_DOMAIN)}
+                    scraped_whatsapp_links.update(whatsapp_only_links)
+
+                    if depth < max_depth:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        for link_tag in soup.find_all('a', href=True):
+                            href = link_tag.get('href')
+                            if href:
+                                abs_url = urljoin(current_url, href)
+                                parsed_abs_url = urlparse(abs_url)
+
+                                # Basic checks for valid scheme, same base domain, and no fragment
+                                # Normalize the absolute URL for checking
+                                if parsed_abs_url.scheme in ['http', 'https'] and \
+                                   parsed_abs_url.netloc.replace('www.', '') == base_domain and \
+                                   not parsed_abs_url.fragment:
+
+                                    normalized_abs_url = urljoin(abs_url, parsed_abs_url.path or '/')
+
+                                    # Check if the normalized URL has been visited or is already in the queue
+                                    if normalized_abs_url not in visited_urls and (abs_url, depth + 1) not in urls_to_visit:
+                                         # Add to queue and to the set tracking URLs in queue
+                                         queue_list.append((abs_url, depth + 1))
+                                         urls_to_visit.add((abs_url, depth + 1))
 
 
-            except requests.exceptions.Timeout: st.sidebar.markdown(f"<span style='color:orange; font-size:0.8em;'>Timeout: {current_url[:50]}...</span>", unsafe_allow_html=True)
-            except requests.exceptions.HTTPError as e: st.sidebar.markdown(f"<span style='color:orange; font-size:0.8em;'>HTTP Error {e.response.status_code}: {current_url[:50]}...</span>", unsafe_allow_html=True)
-            except requests.exceptions.ConnectionError: st.sidebar.markdown(f"<span style='color:red; font-size:0.8em;'>Conn Error: {current_url[:50]}...</span>", unsafe_allow_html=True)
-            except requests.exceptions.RequestException as e: st.sidebar.markdown(f"<span style='color:orange; font-size:0.8em;'>Req Error ({type(e).__name__}): {current_url[:50]}...</span>", unsafe_allow_html=True)
-            except Exception as e: st.sidebar.markdown(f"<span style='color:red; font-size:0.8em;'>Parse/Other Error ({type(e).__name__}): {current_url[:50]}...</span>", unsafe_allow_html=True)
+                except requests.exceptions.Timeout: st.sidebar.markdown(f"<span style='color:orange; font-size:0.8em;'>Timeout: {current_url[:50]}...</span>", unsafe_allow_html=True)
+                except requests.exceptions.HTTPError as e: st.sidebar.markdown(f"<span style='color:orange; font-size:0.8em;'>HTTP Error {e.response.status_code}: {current_url[:50]}...</span>", unsafe_allow_html=True)
+                except requests.exceptions.ConnectionError: st.sidebar.markdown(f"<span style='color:red; font-size:0.8em;'>Conn Error: {current_url[:50]}...</span>", unsafe_allow_html=True)
+                except requests.exceptions.RequestException as e: st.sidebar.markdown(f"<span style='color:orange; font-size:0.8em;'>Req Error ({type(e).__name__}): {current_url[:50]}...</span>", unsafe_allow_html=True)
+                except Exception as e: st.sidebar.markdown(f"<span style='color:red; font-size:0.8em;'>Parse/Other Error ({type(e).__name__}): {current_url[:50]}...</span>", unsafe_allow_html=True)
 
-            # Optional: Add a small delay between requests to be polite during crawl
-            # time.sleep(0.05) # Small delay
+                # Optional: Add a small delay between requests to be polite during crawl
+                # time.sleep(0.05)
 
-    session.close() # Close the session when done
+    finally:
+        session.close() # Ensure the session is closed
+
     st.sidebar.success(f"Crawl finished. Scraped {page_count} pages and found {len(scraped_whatsapp_links)} unique WhatsApp links.")
     if page_count >= max_pages:
          st.sidebar.warning(f"Stopped crawl after reaching maximum pages ({max_pages}).", icon="❗️")
+    if len(queue_list) > max_queue_size: # Also report if queue was trimmed
+        st.sidebar.warning(f"Crawl queue was capped at {max_queue_size}.", icon="❗️")
+
 
     return scraped_whatsapp_links # Return the set of unique WhatsApp links found
 
@@ -628,7 +652,7 @@ def generate_styled_html_table(active_results_df):
         html_string += '</td>'
 
         # Cell 2: Group Name
-        # Sanitize group name for HTML display (basic entity escaping)
+        # Sanitize group name for HTML display (basic entity escaping) - CORRECTED LINE
         safe_group_name = group_name.replace('&', '&').replace('<', '<').replace('>', '>').replace('"', '"').replace("'", ''')
         html_string += f'<td class="group-name-cell">{safe_group_name}</td>'
 
@@ -657,24 +681,26 @@ def main():
     st.markdown('<p class="subtitle">Find, scrape, and validate WhatsApp group links from various sources.</p>', unsafe_allow_html=True)
 
     # Initialize session state variables safely
-    # 'results': List of dictionaries, each representing a validated link result
-    # 'processed_links_in_session': Set of normalized WhatsApp links that have been added to results
     if 'results' not in st.session_state: st.session_state.results = []
     if 'processed_links_in_session' not in st.session_state: st.session_state.processed_links_in_session = set()
 
-    # Ensure processed_links_in_session is a set if it somehow got changed
+    # Ensure processed_links_in_session is a set and populate it from existing results on startup
     if not isinstance(st.session_state.processed_links_in_session, set):
          st.session_state.processed_links_in_session = set()
-         # Re-populate set from existing results if necessary (handles potential state migration)
-         if isinstance(st.session_state.results, list):
-              for res in st.session_state.results:
-                   if 'Group Link' in res and res['Group Link'].startswith(WHATSAPP_DOMAIN):
-                        try:
-                             parsed_url = urlparse(res['Group Link'])
-                             normalized_link = parsed_url.scheme + "://" + parsed_url.netloc + parsed_url.path
-                             st.session_state.processed_links_in_session.add(normalized_link)
-                        except Exception:
-                             pass # Ignore malformed links
+
+    # Populate the processed set from existing results (handles app restart or state changes)
+    if isinstance(st.session_state.results, list):
+         for res in st.session_state.results:
+              if 'Group Link' in res and res['Group Link'] and res['Group Link'].startswith(WHATSAPP_DOMAIN):
+                   try:
+                        # Normalize link for tracking in the set
+                        parsed_url = urlparse(res['Group Link'])
+                        normalized_link = parsed_url.scheme + "://" + parsed_url.netloc + parsed_url.path
+                        st.session_state.processed_links_in_session.add(normalized_link)
+                   except Exception:
+                        # Fallback: add the original link if normalization fails
+                        st.session_state.processed_links_in_session.add(res['Group Link'])
+
 
     with st.sidebar:
         st.header("⚙️ Input & Settings")
@@ -684,7 +710,7 @@ def main():
             "Scrape from Specific Webpage URL",
             "Scrape from Entire Website (Extensive Crawl)",
             "Enter Links Manually (for Validation)",
-            "Upload Link File (TXT/CSV for Validation)"
+            "Upload Link File (TXT/CSV/Excel)" # Updated option name
         ], key="input_method_main_select") # Unique key
 
         # Settings for Google Search Methods
@@ -792,13 +818,12 @@ def main():
                     current_action_scraped_links.update(whatsapp_only_links)
 
 
-        elif input_method == "Upload Link File (TXT/CSV for Validation)":
-            uploaded_file_val = st.file_uploader("Upload TXT or CSV", type=["txt", "csv", "xlsx"], key="file_upload_input") # Added xlsx type
-            if uploaded_file_val and st.button("Validate File Links", use_container_width=True, key="upload_validate_button"):
-                 # Determine file type and load accordingly
+        elif input_method == "Upload Link File (TXT/CSV/Excel)": # Updated option name
+            uploaded_file_val = st.file_uploader("Upload TXT, CSV, or Excel (.xlsx)", type=["txt", "csv", "xlsx"], key="file_upload_input")
+            if uploaded_file_val and st.button("Process File", use_container_width=True, key="upload_process_button"): # Changed button text
+                 # Determine file type and process accordingly
                  if uploaded_file_val.name.endswith('.xlsx'):
-                      st.info("Loading keywords/links from Excel...")
-                      # For Excel, treat as keywords for Google search by default
+                      st.info("Loading keywords from Excel (1st column) for Google search...")
                       keywords_from_file = load_keywords_from_excel(uploaded_file_val)
                       if keywords_from_file:
                            st.info(f"Loaded {len(keywords_from_file)} keywords from Excel. Starting Google searches...")
@@ -815,8 +840,8 @@ def main():
                       else:
                            st.warning("No keywords found in the Excel file.")
 
-                 else: # Assume TXT or CSV
-                    st.info("Loading links from TXT/CSV file...")
+                 elif uploaded_file_val.name.endswith(('.txt', '.csv')): # Assume TXT or CSV for direct links
+                    st.info("Loading links from TXT/CSV file for validation...")
                     links_from_file = load_links_from_file(uploaded_file_val)
                     if not links_from_file:
                         st.warning("No links found or processed from the uploaded file.")
@@ -826,6 +851,8 @@ def main():
                         if len(whatsapp_only_links_file) < len(links_from_file):
                              st.warning(f"Skipped {len(links_from_file) - len(whatsapp_only_links_file)} lines that did not start with '{WHATSAPP_DOMAIN}'")
                         current_action_scraped_links.update(whatsapp_only_links_file)
+                 else:
+                      st.warning("Unsupported file type. Please upload .txt, .csv, or .xlsx.")
 
 
     except Exception as e:
@@ -868,14 +895,14 @@ def main():
                     st.sidebar.error(f"Validation error for {link[:50]}...: {exc}", icon="❗")
 
                 # Mark the link as processed regardless of validation outcome
-                # Use the normalized link for consistent tracking
+                # Use the normalized link for consistent tracking in the set
                 try:
                     parsed_link = urlparse(link)
                     normalized_link = parsed_link.scheme + "://" + parsed_link.netloc + parsed_link.path
                     st.session_state.processed_links_in_session.add(normalized_link)
                 except Exception:
-                     st.sidebar.warning(f"Could not normalize link for tracking: {link[:50]}...", icon="⚠️")
-                     st.session_state.processed_links_in_session.add(link) # Add original if normalization fails
+                     # If normalization fails for some reason, add the original link
+                     st.session_state.processed_links_in_session.add(link)
 
 
                 # Update progress and status text
@@ -906,8 +933,7 @@ def main():
         # Filter for 'Expired' status explicitly
         expired_df = df[df['Status'] == 'Expired'].copy()
         # Filter for any status indicating an error or failure
-        error_statuses = ['HTTP Error', 'Redirected Away', 'Timeout Error', 'Connection Error', 'Network Error', 'Parsing Error', 'Validation Failed', 'Unknown']
-        # Use str.contains for more flexibility, covering cases like 'HTTP Error 404', 'Network Error: Timeout', etc.
+        # Using str.contains is robust to variations like 'HTTP Error 404', 'Network Error: Timeout', etc.
         error_df = df[df['Status'].str.contains('Error|Redirected|Timeout|Connection|Failed|Unknown', na=False)].copy()
 
 
@@ -938,7 +964,7 @@ def main():
             # Default selection: Active statuses if they exist, otherwise the first status found
             default_statuses = [s for s in all_statuses if 'Active' in s]
             # Add 'Expired' to default if it exists and Active wasn't selected
-            if 'Expired' in all_statuses and not default_statuses: default_statuses = ['Expired']
+            if 'Expired' in all_statuses and 'Expired' not in default_statuses: default_statuses.append('Expired')
             # If no statuses selected by default rules, pick the first one if any exist
             if not default_statuses and all_statuses: default_statuses = [all_statuses[0]]
             # Ensure default statuses are actually in the available options
@@ -1044,7 +1070,7 @@ if __name__ == "__main__":
     # googlesearch and fake-useragent are handled by their import blocks
 
     if missing_libs:
-        st.error(f"The following required libraries are not installed: {', '.join(missing_libs)}. Please install them using pip (e.g., `pip install requests bs4 pandas openpyxl`).")
+        st.error(f"The following required libraries are not installed: {', '.join(missing_libs)}. Please install them using pip (e.g., `pip install requests bs4 pandas openpyxl fake-useragent googlesearch-python`).")
         st.stop() # Stop the app if essential libraries are missing
 
     # Run the main function
