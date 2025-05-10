@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-import html # For html.escape()
+import html
 from bs4 import BeautifulSoup
 import re
 import time
@@ -30,35 +30,35 @@ try:
                 "Accept-Language": "en-US,en;q=0.9"
             }
         except FakeUserAgentError:
-             st.warning("fake-useragent failed to get a User-Agent. Using fallback.", icon="⚠️")
-             return {
+            st.warning("fake-useragent failed to get a User-Agent. Using fallback.", icon="⚠️")
+            return {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9"
             }
         except Exception as e_random:
-             st.warning(f"Error getting random User-Agent: {e_random}. Using fallback.", icon="⚠️")
-             return {
+            st.warning(f"Error getting random User-Agent: {e_random}. Using fallback.", icon="⚠️")
+            return {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9"
             }
 except ImportError:
     st.warning("`fake-useragent` library not found. Install with `pip install fake-useragent`. Using default User-Agent.", icon="⚠️")
     def get_random_headers_general():
-         return {
+        return {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9"
         }
 except FakeUserAgentError as e_init:
-     st.warning(f"Error initializing fake-useragent: {e_init}. Using default User-Agent.", icon="⚠️")
-     def get_random_headers_general():
-         return {
+    st.warning(f"Error initializing fake-useragent: {e_init}. Using default User-Agent.", icon="⚠️")
+    def get_random_headers_general():
+        return {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9"
         }
 except Exception as e_general_init:
-     st.warning(f"Error initializing fake-useragent: {e_general_init}. Using default User-Agent.", icon="⚠️")
-     def get_random_headers_general():
-         return {
+    st.warning(f"Error initializing fake-useragent: {e_general_init}. Using default User-Agent.", icon="⚠️")
+    def get_random_headers_general():
+        return {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9"
         }
@@ -76,7 +76,6 @@ UNNAMED_GROUP_PLACEHOLDER = "Unnamed Group"
 IMAGE_PATTERN_PPS = re.compile(r'https:\/\/pps\.whatsapp\.net\/v\/t\d+\/[-\w]+\/\d+\.jpg\?')
 OG_IMAGE_PATTERN = re.compile(r'https?:\/\/[^\/\s]+\/[^\/\s]+\.(jpg|jpeg|png)(\?[^\s]*)?')
 MAX_VALIDATION_WORKERS = 8
-# DEFAULT_STYLED_TABLE_LIMIT REMOVED - will default to showing all initially
 
 # --- Custom CSS ---
 st.markdown("""
@@ -96,11 +95,9 @@ body { font-family: 'Arial', sans-serif; }
 .stExpander { border: 1px solid #E9ECEF; border-radius: 8px; padding: 12px; margin-top: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
 .stExpander div[data-testid="stExpanderToggleIcon"] { color: #25D366; font-size: 1.2em; }
 .stExpander div[data-testid="stExpanderLabel"] strong { color: #1EBE5A; font-size: 1.1em; }
-
 .filter-container { background-color: #FDFDFD; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #DDE2E5; }
-.filter-container .stTextInput input, .filter-container .stNumberInput input { background-color: #fff; }
+.filter-container .stTextInput input, .filter-container .stNumberInput input { background-color: #fff;zczy}
 h4 { color: #259952; margin-top:10px; margin-bottom:10px; border-left: 3px solid #25D366; padding-left: 8px;}
-
 .whatsapp-groups-table { border-collapse: collapse; width: 100%; margin-top: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); border-radius: 8px; overflow: hidden; border: 1px solid #DEE2E6; }
 .whatsapp-groups-table caption { caption-side: top; text-align: left; font-weight: 600; padding: 12px 15px; font-size: 1.15em; color: #343A40; background-color: #F8F9FA; border-bottom: 1px solid #DEE2E6;}
 .whatsapp-groups-table th { background-color: #343A40; color: white; padding: 14px 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.9em; }
@@ -122,7 +119,6 @@ h4 { color: #259952; margin-top:10px; margin-bottom:10px; border-left: 3px solid
 """, unsafe_allow_html=True)
 
 # --- Helper Functions ---
-# ... (All helper functions like append_query_param, load_keywords_from_excel, load_links_from_file remain identical) ...
 def append_query_param(url, param_name, param_value):
     if not url: return ""
     parsed_url = urlparse(url)
@@ -156,22 +152,21 @@ def load_links_from_file(uploaded_file):
                 break
             except UnicodeDecodeError: continue
         if text_content is None:
-             st.error(f"Could not decode file {uploaded_file.name}.", icon="❌"); return []
+            st.error(f"Could not decode file {uploaded_file.name}.", icon="❌"); return []
 
         if uploaded_file.name.endswith('.csv'):
             try:
-                 df = pd.read_csv(io.StringIO(text_content))
-                 if df.empty: st.warning("CSV file is empty."); return []
-                 return [link.strip() for link in df.iloc[:, 0].dropna().astype(str).tolist() if link.strip().startswith(('http://', 'https://'))]
+                df = pd.read_csv(io.StringIO(text_content))
+                if df.empty: st.warning("CSV file is empty."); return []
+                return [link.strip() for link in df.iloc[:, 0].dropna().astype(str).tolist() if link.strip().startswith(('http://', 'https://'))]
             except Exception as e:
-                 st.error(f"Error reading CSV: {e}.", icon="❌"); return []
+                st.error(f"Error reading CSV: {e}.", icon="❌"); return []
         else: # Assume TXT
-             return [line.strip() for line in text_content.splitlines() if line.strip()]
+            return [line.strip() for line in text_content.splitlines() if line.strip()]
     except Exception as e:
         st.error(f"Error processing file {uploaded_file.name}: {e}", icon="❌"); return []
 
 # --- Core Logic Functions ---
-# ... (validate_link, scrape_whatsapp_links_from_page, google_search_and_scrape, crawl_website remain identical) ...
 def validate_link(link):
     result = {"Group Name": UNNAMED_GROUP_PLACEHOLDER, "Group Link": link, "Logo URL": "", "Status": "Error"}
     try:
@@ -197,18 +192,18 @@ def validate_link(link):
             group_name = html.unescape(meta_title['content']).strip()
             if group_name: result["Group Name"] = group_name; group_name_found = True
         if not group_name_found:
-             potential_name_tags = soup.find_all(['h2', 'strong', 'span'], class_=re.compile('group-name', re.IGNORECASE)) + soup.find_all('div', class_=re.compile('name', re.IGNORECASE))
-             for tag in potential_name_tags:
-                 text = tag.get_text().strip()
-                 if text and len(text) > 2 and text.lower() not in ["whatsapp group invite", "whatsapp", "join group", "invite link"]:
-                     result["Group Name"] = text; group_name_found = True; break
+            potential_name_tags = soup.find_all(['h2', 'strong', 'span'], class_=re.compile('group-name', re.IGNORECASE)) + soup.find_all('div', class_=re.compile('name', re.IGNORECASE))
+            for tag in potential_name_tags:
+                text = tag.get_text().strip()
+                if text and len(text) > 2 and text.lower() not in ["whatsapp group invite", "whatsapp", "join group", "invite link"]:
+                    result["Group Name"] = text; group_name_found = True; break
         
         logo_found = False
         meta_image = soup.find('meta', property='og:image')
         if meta_image and meta_image.get('content'):
-             src = html.unescape(meta_image['content'])
-             if OG_IMAGE_PATTERN.match(src) or src.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
-                 result["Logo URL"] = src; logo_found = True
+            src = html.unescape(meta_image['content'])
+            if OG_IMAGE_PATTERN.match(src) or src.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+                result["Logo URL"] = src; logo_found = True
         if not logo_found:
             for img in soup.find_all('img', src=True):
                 src = html.unescape(img['src'])
@@ -219,7 +214,7 @@ def validate_link(link):
             result["Status"] = "Active"
         elif result["Status"] == "Expired" and (group_name_found or logo_found):
             if soup.find('a', attrs={'id': 'action-button', 'href': link}):
-                 result["Status"] = "Active"
+                result["Status"] = "Active"
 
     except requests.exceptions.Timeout: result["Status"] = "Timeout Error"
     except requests.exceptions.ConnectionError: result["Status"] = "Connection Error"
@@ -277,7 +272,7 @@ def google_search_and_scrape(query, top_n=5):
                 for link in wa_links_from_page:
                     if link.startswith(WHATSAPP_DOMAIN) and link not in all_scraped_wa_links:
                         all_scraped_wa_links.add(link)
-                        newly_found_count +=1
+                        newly_found_count += 1
                 if newly_found_count > 0:
                     st.sidebar.info(f"Found {newly_found_count} new WA links on {url_from_google[:30]}...")
                 prog_bar.progress((i+1)/len(search_page_urls))
@@ -294,7 +289,7 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
     scraped_whatsapp_links = set()
     if not start_url.strip(): return scraped_whatsapp_links
     if not start_url.startswith(('http://', 'https://')):
-         start_url = 'https://' + start_url; st.sidebar.warning(f"Prepending 'https://': {start_url}", icon="🔗")
+        start_url = 'https://' + start_url; st.sidebar.warning(f"Prepending 'https://': {start_url}", icon="🔗")
     parsed_start_url = urlparse(start_url)
     if not parsed_start_url.netloc:
         st.sidebar.error(f"Invalid start URL: {start_url}", icon="🚫"); return scraped_whatsapp_links
@@ -305,7 +300,7 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
     with requests.Session() as session, st.spinner(f"Crawling {base_domain}..."):
         while queue_list and page_count < max_pages:
             if len(queue_list) > max_q_size:
-                 st.sidebar.warning(f"Queue > {max_q_size}. Stopping.", icon="❗️"); queue_list = queue_list[:max_q_size]
+                st.sidebar.warning(f"Queue > {max_q_size}. Stopping.", icon="❗️"); queue_list = queue_list[:max_q_size]
             current_url, depth = queue_list.pop(0)
             normalized_current_url = urljoin(current_url, urlparse(current_url).path or '/')
             if normalized_current_url in visited_urls or depth > max_depth: continue
@@ -322,7 +317,7 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
                 for link in wa_links_from_page:
                     if link.startswith(WHATSAPP_DOMAIN) and link not in scraped_whatsapp_links:
                         scraped_whatsapp_links.add(link)
-                        newly_found_count +=1
+                        newly_found_count += 1
                 if newly_found_count > 0:
                     st.sidebar.info(f"Crawl: Found {newly_found_count} new WA links on {current_url[:30]}...")
 
@@ -338,7 +333,7 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
                                not parsed_abs_url.fragment:
                                 normalized_abs_url = urljoin(abs_url, parsed_abs_url.path or '/')
                                 if normalized_abs_url not in visited_urls and (abs_url, depth + 1) not in urls_in_queue_tuples:
-                                     queue_list.append((abs_url, depth + 1)); urls_in_queue_tuples.add((abs_url, depth + 1))
+                                    queue_list.append((abs_url, depth + 1)); urls_in_queue_tuples.add((abs_url, depth + 1))
             except requests.exceptions.RequestException as e: st.sidebar.warning(f"Crawl Req Err ({type(e).__name__}): {current_url[:50]}...", icon="🕸️")
             except Exception as e: st.sidebar.error(f"Crawl Parse Err ({type(e).__name__}): {current_url[:50]}...", icon="💥")
     st.sidebar.success(f"Crawl done. Scraped {page_count} pages, found {len(scraped_whatsapp_links)} links.")
@@ -347,7 +342,6 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
     return scraped_whatsapp_links
 
 def generate_styled_html_table(data_df_for_table):
-    # Expects data_df_for_table to be ALREADY filtered for active, name (if any), and limit
     df_to_display = data_df_for_table[data_df_for_table['Group Name'] != UNNAMED_GROUP_PLACEHOLDER].copy()
     
     if df_to_display.empty:
@@ -372,15 +366,15 @@ def generate_styled_html_table(data_df_for_table):
             display_logo_url = append_query_param(logo_url, 'w', '96') if logo_url.startswith('https://pps.whatsapp.net/') else logo_url
             html_string += f'<img src="{html.escape(display_logo_url)}" alt="{alt_text}" class="group-logo-img" loading="lazy">'
         else:
-             html_string += f'<div class="group-logo-img" style="background-color:#e0e0e0; display:flex; align-items:center; justify-content:center; font-size:0.8em; color:#888;" aria-label="{alt_text}">?</div>'
+            html_string += f'<div class="group-logo-img" style="background-color:#e0e0e0; display:flex; align-items:center; justify-content:center; font-size:0.8em; color:#888;" aria-label="{alt_text}">?</div>'
         html_string += '</td>'
         safe_group_name = html.escape(group_name)
         html_string += f'<td class="group-name-cell">{safe_group_name}</td>'
         html_string += '<td class="join-button-cell">'
         if group_link and group_link.startswith(WHATSAPP_DOMAIN):
-             html_string += f'<a href="{html.escape(group_link)}" class="join-button" target="_blank" rel="noopener noreferrer">Join Group</a>'
+            html_string += f'<a href="{html.escape(group_link)}" class="join-button" target="_blank" rel="noopener noreferrer">Join Group</a>'
         else:
-             html_string += '<span style="color:#888; font-size:0.9em;">N/A</span>'
+            html_string += '<span style="color:#888; font-size:0.9em;">N/A</span>'
         html_string += '</td></tr>'
     html_string += '</tbody></table>'
     return html_string
@@ -390,18 +384,15 @@ def main():
     st.markdown('<h1 class="main-title">WhatsApp Link Scraper & Validator 🚀</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Discover, Scrape, Validate, and Manage WhatsApp Group Links with Enhanced Filtering.</p>', unsafe_allow_html=True)
 
+    # Initialize session state
     if 'results' not in st.session_state: st.session_state.results = []
     if 'processed_links_in_session' not in st.session_state: st.session_state.processed_links_in_session = set()
-    # For styled table filters:
     if 'styled_table_name_keywords' not in st.session_state: st.session_state.styled_table_name_keywords = ""
-    if 'styled_table_limit_active' not in st.session_state: st.session_state.styled_table_limit_active = False # Tracks if user *manually* set a limit
-    if 'styled_table_current_limit_value' not in st.session_state: st.session_state.styled_table_current_limit_value = 0 # Will be set to total initially
-
-    # For advanced download filters:
+    if 'styled_table_current_limit_value' not in st.session_state: st.session_state.styled_table_current_limit_value = 50
     if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = []
     if 'adv_filter_name_keywords' not in st.session_state: st.session_state.adv_filter_name_keywords = ""
-    
-    # ... (rest of session state initialization and population logic) ...
+
+    # Ensure processed_links_in_session is a set and populate it
     if not isinstance(st.session_state.processed_links_in_session, set):
         st.session_state.processed_links_in_session = set()
     if isinstance(st.session_state.results, list):
@@ -414,6 +405,7 @@ def main():
                 except Exception:
                     st.session_state.processed_links_in_session.add(res_item['Group Link'])
 
+    # Sidebar
     with st.sidebar:
         st.header("⚙️ Input & Settings")
         input_method = st.selectbox("Choose Input Method:", [
@@ -436,16 +428,15 @@ def main():
         if st.button("🗑️ Clear All Results & Reset Filters", use_container_width=True, key="clear_all_button"):
             st.session_state.results, st.session_state.processed_links_in_session = [], set()
             st.session_state.styled_table_name_keywords = ""
-            st.session_state.styled_table_limit_active = False
-            st.session_state.styled_table_current_limit_value = 0 
+            st.session_state.styled_table_current_limit_value = 50
             st.session_state.adv_filter_status = []
             st.session_state.adv_filter_name_keywords = ""
             st.cache_data.clear(); st.success("Results & filters cleared!"); st.rerun()
 
+    # Action Zone
     current_action_scraped_links = set()
     st.subheader(f"🚀 Action Zone: {input_method}")
 
-    # --- Input and Scraping Logic (Identical to previous version) ---
     try:
         if input_method == "Search and Scrape from Google":
             query = st.text_input("Search Query:", placeholder="e.g., Islamic WhatsApp group", key="gs_query_input")
@@ -526,7 +517,7 @@ def main():
                 else: st.warning("Unsupported file. Use .txt, .csv, or .xlsx.")
     except Exception as e: st.error(f"Input/Scraping Error: {e}", icon="💥")
 
-    # --- Validation Logic (Identical to previous version) ---
+    # Validation
     links_to_validate_now = list(current_action_scraped_links - st.session_state.processed_links_in_session)
     if links_to_validate_now:
         st.success(f"Found {len(current_action_scraped_links)} links. Validating {len(links_to_validate_now)} new links...")
@@ -555,13 +546,12 @@ def main():
             st.session_state.results.extend(new_results_this_run)
         stat_val.success(f"Validation complete for {len(links_to_validate_now)} new links!")
     elif current_action_scraped_links and not links_to_validate_now:
-         st.info("No *new* WhatsApp links found from this action. All were previously processed.")
+        st.info("No *new* WhatsApp links found from this action. All were previously processed.")
 
-
-    # --- Results Display ---
+    # Results Display
     if 'results' in st.session_state and st.session_state.results:
         unique_results_df = pd.DataFrame(st.session_state.results).drop_duplicates(subset=['Group Link'], keep='first')
-        st.session_state.results = unique_results_df.to_dict('records') # Update session state with unique results
+        st.session_state.results = unique_results_df.to_dict('records')
         df_display_master = unique_results_df.reset_index(drop=True)
 
         active_df_all_master = df_display_master[df_display_master['Status'].str.contains('Active', na=False)].copy()
@@ -575,26 +565,40 @@ def main():
         col3.markdown(f'<div class="metric-card">Expired Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
         col4.markdown(f'<div class="metric-card">Other Status<br><div class="metric-value">{len(error_df_master)}</div></div>', unsafe_allow_html=True)
 
+        # Styled Table with Filters
         st.subheader("✨ Active Groups Display (Styled Table)")
         with st.expander("View and Filter Active Groups", expanded=True):
             if not active_df_all_master.empty:
                 st.markdown('<div class="filter-container">', unsafe_allow_html=True)
                 st.markdown("#### Filter Displayed Active Groups:")
-                
-                # Name Keyword Filter for Styled Table
-                name_keywords_styled_input = st.text_input(
-                    "Filter by Group Name Keywords (comma-separated):",
-                    value=st.session_state.styled_table_name_keywords,
-                    key="styled_table_name_keywords_input_key", # Unique key
-                    placeholder="e.g., study, fun, tech",
-                    help="Enter keywords (comma-separated). Shows groups matching ANY keyword."
-                ).strip()
-                if name_keywords_styled_input != st.session_state.styled_table_name_keywords:
-                    st.session_state.styled_table_name_keywords = name_keywords_styled_input
-                    # Reset limit activation if name filter changes, so new default limit applies
-                    st.session_state.styled_table_limit_active = False 
-                    st.rerun() # Rerun to update counts and default limit
 
+                with st.form("styled_table_filters_form"):
+                    name_keywords_input = st.text_input(
+                        "Filter by Group Name Keywords (comma-separated):",
+                        value=st.session_state.styled_table_name_keywords,
+                        placeholder="e.g., study, fun, tech",
+                        help="Enter keywords (comma-separated). Shows groups matching ANY keyword."
+                    ).strip()
+                    limit_input = st.number_input(
+                        "Max Groups to Display in Table:",
+                        min_value=1,
+                        max_value=1000,
+                        value=st.session_state.styled_table_current_limit_value,
+                        step=10,
+                        help="Set the maximum number of groups to display in the table."
+                    )
+                    apply_filters = st.form_submit_button("Apply Filters")
+
+                if apply_filters:
+                    st.session_state.styled_table_name_keywords = name_keywords_input
+                    st.session_state.styled_table_current_limit_value = limit_input
+
+                if st.button("Reset Filters", key="reset_styled_table_filters_button"):
+                    st.session_state.styled_table_name_keywords = ""
+                    st.session_state.styled_table_current_limit_value = 50
+                    st.rerun()
+
+                # Filter the dataframe
                 active_df_for_styled_table = active_df_all_master.copy()
                 if st.session_state.styled_table_name_keywords:
                     keywords_list = [kw.strip().lower() for kw in st.session_state.styled_table_name_keywords.split(',') if kw.strip()]
@@ -603,41 +607,25 @@ def main():
                         active_df_for_styled_table = active_df_for_styled_table[
                             active_df_for_styled_table['Group Name'].str.lower().str.contains(regex_pattern, na=False, regex=True)
                         ]
-                
-                # Max Groups Limit for Styled Table
-                available_for_limit = len(active_df_for_styled_table)
-                if available_for_limit == 0: # No groups match name filter
-                    st.markdown('</div>', unsafe_allow_html=True) # Close filter-container
-                    st.markdown(generate_styled_html_table(active_df_for_styled_table), unsafe_allow_html=True) # Show empty message
+
+                num_matching = len(active_df_for_styled_table)
+                num_displayed = min(num_matching, st.session_state.styled_table_current_limit_value)
+                active_df_for_styled_table_final = active_df_for_styled_table.head(num_displayed)
+
+                if num_matching > 0:
+                    st.write(f"Showing {num_displayed} out of {num_matching} matching active groups.")
                 else:
-                    if not st.session_state.styled_table_limit_active: # If limit not manually set by user yet for current name filter
-                        st.session_state.styled_table_current_limit_value = available_for_limit # Default to show all available
+                    st.write("No groups match the current filters.")
 
-                    limit_value_input = st.number_input(
-                        "Max Groups to Display in Table:",
-                        min_value=1,
-                        max_value=available_for_limit,
-                        value=min(st.session_state.styled_table_current_limit_value, available_for_limit), # Ensure value is within new bounds
-                        step=10,
-                        key="styled_table_limit_input_key", # Unique key
-                        help=f"Set max groups to show. Available after name filter: {available_for_limit}"
-                    )
-                    st.markdown('</div>', unsafe_allow_html=True) # Close filter-container
-
-                    # Check if user changed the limit
-                    if limit_value_input != st.session_state.styled_table_current_limit_value:
-                        st.session_state.styled_table_current_limit_value = limit_value_input
-                        st.session_state.styled_table_limit_active = True # User has now actively set a limit
-                        st.rerun() # Rerun to apply the new limit
-
-                    active_df_for_styled_table_final = active_df_for_styled_table.head(st.session_state.styled_table_current_limit_value)
-                    html_out = generate_styled_html_table(active_df_for_styled_table_final)
-                    st.markdown(html_out, unsafe_allow_html=True)
-                    st.markdown("---")
-                    st.text_area("Copy Raw HTML Code (above table):", value=html_out, height=150, key="styled_html_export_area_key", help="Ctrl+A, Ctrl+C") # Unique key
+                html_out = generate_styled_html_table(active_df_for_styled_table_final)
+                st.markdown(html_out, unsafe_allow_html=True)
+                st.markdown("---")
+                st.text_area("Copy Raw HTML Code (above table):", value=html_out, height=150, key="styled_html_export_area_key", help="Ctrl+A, Ctrl+C")
+                st.markdown('</div>', unsafe_allow_html=True) # Close filter-container
             else:
                 st.info("No active groups found yet to display here.")
-        
+
+        # Advanced Filtering for Downloads
         with st.expander("🔬 Advanced Filtering for Downloads & Analysis (Optional)", expanded=False):
             st.markdown('<div class="filter-container" style="border-style:solid;">', unsafe_allow_html=True)
             st.markdown("#### Filter Full Dataset (for Download/Analysis):")
@@ -645,12 +633,12 @@ def main():
             all_statuses_master = sorted(list(df_display_master['Status'].unique()))
             st.session_state.adv_filter_status = st.multiselect(
                 "Filter by Status:", options=all_statuses_master,
-                default=st.session_state.adv_filter_status, key="adv_status_filter_multiselect_key" # Unique key
+                default=st.session_state.adv_filter_status, key="adv_status_filter_multiselect_key"
             )
 
             st.session_state.adv_filter_name_keywords = st.text_input(
                 "Filter by Group Name Keywords (comma-separated):", value=st.session_state.adv_filter_name_keywords,
-                key="adv_name_keyword_filter_input_key", placeholder="e.g., news, jobs, global", # Unique key
+                key="adv_name_keyword_filter_input_key", placeholder="e.g., news, jobs, global",
                 help="Applies to the entire dataset for download/analysis. Comma-separated."
             ).strip()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -677,19 +665,20 @@ def main():
                 "Status": st.column_config.TextColumn("Status", width="small")
             }, hide_index=True, height=300, use_container_width=True)
 
+        # Downloads
         st.subheader("📥 Download Results (CSV)")
         dl_col1, dl_col2 = st.columns(2)
         if not active_df_all_master.empty:
-            dl_col1.download_button("Active Groups (CSV)", active_df_all_master.to_csv(index=False).encode('utf-8'), "active_groups.csv", "text/csv", use_container_width=True, key="dl_active_csv_main_key") # Unique key
+            dl_col1.download_button("Active Groups (CSV)", active_df_all_master.to_csv(index=False).encode('utf-8'), "active_groups.csv", "text/csv", use_container_width=True, key="dl_active_csv_main_key")
         else:
             dl_col1.button("Active Groups (CSV)", disabled=True, use_container_width=True, help="No active groups to download.")
 
         if not df_for_adv_download_or_view.empty:
             download_label = "All Processed Results (CSV)"
             if adv_filters_applied: download_label = f"Filtered Processed Results (CSV - {len(df_for_adv_download_or_view)} rows)"
-            dl_col2.download_button(download_label, df_for_adv_download_or_view.to_csv(index=False).encode('utf-8'), "processed_results.csv", "text/csv", use_container_width=True, key="dl_all_or_filtered_csv_key") # Unique key
+            dl_col2.download_button(download_label, df_for_adv_download_or_view.to_csv(index=False).encode('utf-8'), "processed_results.csv", "text/csv", use_container_width=True, key="dl_all_or_filtered_csv_key")
         elif not df_display_master.empty() and df_for_adv_download_or_view.empty() and adv_filters_applied:
-             dl_col2.button("No Results Match Advanced Filters", disabled=True, use_container_width=True)
+            dl_col2.button("No Results Match Advanced Filters", disabled=True, use_container_width=True)
         else:
             dl_col2.button("All Processed Results (CSV)", disabled=True, use_container_width=True, help="No results to download.")
             
