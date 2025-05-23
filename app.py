@@ -16,7 +16,7 @@ try:
 except Exception as e:
     st.error(f"Could not initialize Fake UserAgent, using a default. Error: {e}")
     class FallbackUserAgent:
-        def random(self):
+        def random(self): # This is a method, so it should be called with ()
             return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     ua_general = FallbackUserAgent()
 
@@ -68,7 +68,7 @@ st.markdown("""
 def get_random_headers_for_general_use():
     """Returns headers with a random User-Agent for general scraping/validation."""
     return {
-        "User-Agent": ua_general.random,
+        "User-Agent": ua_general.random(), # FIXED: Call the method
         "Accept-Language": "en-US,en;q=0.9"
     }
 
@@ -81,15 +81,17 @@ def append_query_param(url, param_name, param_value):
     return parsed_url._replace(query=new_query_string).geturl()
 
 # --- Google Search Function ---
-def google_search_user_original(query, top_n=5, pause_duration=5.0):
+def google_search_user_original(query, top_n=5): # MODIFIED: Removed pause_duration
     """Fetch URLs from Google's top N search results with random User-Agent."""
     try:
         headers = {
-            "User-Agent": ua_general.random,
+            "User-Agent": ua_general.random(), # FIXED: Call the method
             "Accept-Language": "en-US,en;q=0.9"
         }
-        st.sidebar.info(f"Googling '{query}' (top {top_n}, pause: {pause_duration}s)...")
-        urls = list(google_search_library(query, num_results=top_n, lang="en", pause=pause_duration, headers=headers))
+        # MODIFIED: Updated info message
+        st.sidebar.info(f"Googling '{query}' (top {top_n})...")
+        # MODIFIED: Removed pause argument, library will use its default
+        urls = list(google_search_library(query, num_results=top_n, lang="en", headers=headers))
         if not urls:
             st.warning(f"No search results found for '{query}'. Try refining your search terms.")
         return urls
@@ -101,7 +103,7 @@ def scrape_whatsapp_links_user_original(url):
     """Scrape WhatsApp group links from a webpage."""
     try:
         headers = {
-            "User-Agent": ua_general.random
+            "User-Agent": ua_general.random() # FIXED: Call the method
         }
         response = requests.get(url, headers=headers, timeout=10)
         response.encoding = 'utf-8'
@@ -216,9 +218,6 @@ def generate_markdown_output(active_results_df, negative_keywords=[]):
     if active_results_df.empty:
         return "No active groups found to generate HTML table."
 
-    # These are the labels that will correspond to your table headers
-    # and will be used in the data-label attributes.
-    # Ensure they match the order and meaning of your <th> elements.
     header_labels = {
         "Logo": "Logo",
         "Group Name": "Group Name",
@@ -228,7 +227,6 @@ def generate_markdown_output(active_results_df, negative_keywords=[]):
     markdown_lines = [
         '<table class="whatsapp-groups-table" aria-label="List of Active WhatsApp Groups">',
         '<caption>Filtered Active WhatsApp Groups</caption>',
-        # Ensure your <th> text matches the keys/values in header_labels if you want them to be identical
         '<thead><tr><th scope="col">Logo</th><th scope="col">Group Name</th><th scope="col">Group Link</th></tr></thead>',
         '<tbody>'
     ]
@@ -243,23 +241,19 @@ def generate_markdown_output(active_results_df, negative_keywords=[]):
         group_link = row.get("Group Link", "")
 
         if logo_url:
-            # Consider adding error handling for append_query_param if logo_url might be invalid
             try:
-                resized_logo_url_server = append_query_param(logo_url, 'w', '96') # Appends w=96 for image width
+                resized_logo_url_server = append_query_param(logo_url, 'w', '96') 
                 logo_md = f'<img src="{resized_logo_url_server}" alt="{group_name} Group Logo" class="group-logo-img" loading="lazy" onerror="this.src=\'https://placehold.co/96x96/cccccc/FFFFFF?text=Error\'; this.alt=\'Fallback Logo\';">'
-            except Exception: # Catch potential errors if logo_url is malformed for append_query_param
+            except Exception: 
                  logo_md = f'<img src="https://placehold.co/96x96/cccccc/FFFFFF?text=Logo" alt="{group_name} Group Logo (Error)" class="group-logo-img" loading="lazy">'
         else:
-            # Provide a placeholder if no logo URL is present
             logo_md = f'<img src="https://placehold.co/96x96/eeeeee/999999?text=No+Logo" alt="{group_name} No Logo" class="group-logo-img" loading="lazy">'
 
 
         link_md = f'<a href="{group_link}" class="join-button" target="_blank" rel="noopener noreferrer">Join Group</a>'
         
-        # Sanitize group name for HTML display
-        safe_group_name = unescape(group_name) # Use html.unescape
+        safe_group_name = unescape(group_name) 
 
-        # *** MODIFICATION HERE: Add data-label attributes ***
         markdown_lines.append(
             f'<tr>'
             f'<td data-label="{header_labels["Logo"]}" class="group-logo-cell">{logo_md}</td>'
@@ -295,17 +289,14 @@ def main():
         ], key="input_method_main_select")
 
         google_results_slider_top_n = 5
-        google_search_pause = 5.0
+        # MODIFIED: Removed google_search_pause initialization
 
         if input_method in ["Search and Scrape from Google", "Search & Scrape from Google (Bulk via Excel)"]:
             google_results_slider_top_n = st.slider(
                 "Google Results to Scrape (per keyword)",
-                min_value=1, max_value=20, value=5, key="google_top_n_slider"
+                min_value=1, max_value=20, value=google_results_slider_top_n, key="google_top_n_slider" # Use current value
             )
-            google_search_pause = st.slider(
-                "Google Search Pause (seconds):", min_value=1.0, max_value=10.0, value=5.0, step=0.5,
-                help="Pause between Google search API calls to avoid rate-limiting.", key="google_pause_slider"
-            )
+            # MODIFIED: Removed google_search_pause slider
         
         crawl_depth_val, max_crawl_pages_val = 2, 50
         if input_method == "Scrape from Entire Website (Extensive Crawl)":
@@ -328,7 +319,8 @@ def main():
                 if not keyword_gs: st.warning("Please enter a search query.")
                 else:
                     with st.spinner("Searching Google..."):
-                        search_page_urls = google_search_user_original(keyword_gs, top_n=google_results_slider_top_n, pause_duration=google_search_pause)
+                        # MODIFIED: Call to google_search_user_original updated
+                        search_page_urls = google_search_user_original(keyword_gs, top_n=google_results_slider_top_n)
                     if search_page_urls:
                         st.success(f"Found {len(search_page_urls)} webpages. Scraping WhatsApp links...")
                         prog_bar_gs = st.progress(0)
@@ -348,7 +340,8 @@ def main():
                     prog_bulk, stat_txt_bulk = st.progress(0), st.empty()
                     for i, kw_bulk in enumerate(keywords_bulk):
                         stat_txt_bulk.write(f"Keyword: **{kw_bulk}** ({i+1}/{len(keywords_bulk)})")
-                        search_page_urls_bulk = google_search_user_original(kw_bulk, top_n=google_results_slider_top_n, pause_duration=google_search_pause)
+                        # MODIFIED: Call to google_search_user_original updated
+                        search_page_urls_bulk = google_search_user_original(kw_bulk, top_n=google_results_slider_top_n)
                         if search_page_urls_bulk:
                             for page_url_bulk in search_page_urls_bulk:
                                 links_from_page_bulk = scrape_whatsapp_links_user_original(page_url_bulk)
@@ -471,7 +464,11 @@ def main():
             )
             negative_keywords = [kw.strip() for kw in negative_keywords_input.split(",") if kw.strip()]
             md_data_export = generate_markdown_output(active_df_display, negative_keywords)
-            st.markdown(f"Showing {len(active_df_display) - sum(1 for _, row in active_df_display.iterrows() if any(kw.lower() in row.get('Group Name', '').lower() for kw in negative_keywords))} out of {len(active_df_display)} matching active groups.")
+            
+            # Calculate count after filtering for the message
+            count_after_negative_filter = sum(1 for _, row in active_df_display.iterrows() if not any(kw.lower() in row.get('Group Name', '').lower() for kw in negative_keywords))
+            st.markdown(f"Showing {count_after_negative_filter} out of {len(active_df_display)} active groups (after applying negative keywords).")
+
             with st.expander("Copy or Download HTML Table", expanded=True):
                 st.text_area("Copy Raw HTML Code (above table):", value=md_data_export, height=250, key="md_export_area")
                 st.download_button(
@@ -515,7 +512,7 @@ def main():
 if __name__ == "__main__":
     try: import openpyxl
     except ImportError: st.error("Library 'openpyxl' for Excel is missing. Please install: `pip install openpyxl`"); st.stop()
-    try: from fake_useragent import UserAgent; UserAgent()
+    try: from fake_useragent import UserAgent; UserAgent() # Test initialization
     except ImportError: st.warning("Library 'fake-useragent' is missing. General scraping might be less effective. Install: `pip install fake-useragent`", icon="⚠️")
     except Exception: st.warning("Fake-useragent initialized with issues. General scraping might use a default User-Agent.", icon="⚠️")
     
