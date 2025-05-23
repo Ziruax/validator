@@ -16,7 +16,7 @@ try:
 except Exception as e:
     st.error(f"Could not initialize Fake UserAgent, using a default. Error: {e}")
     class FallbackUserAgent:
-        def random(self): # This is a method, so it should be called with ()
+        def random(self):
             return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     ua_general = FallbackUserAgent()
 
@@ -68,7 +68,7 @@ st.markdown("""
 def get_random_headers_for_general_use():
     """Returns headers with a random User-Agent for general scraping/validation."""
     return {
-        "User-Agent": ua_general.random(), # FIXED: Call the method
+        "User-Agent": ua_general.random, # CORRECTED: Reverted to original access
         "Accept-Language": "en-US,en;q=0.9"
     }
 
@@ -84,14 +84,14 @@ def append_query_param(url, param_name, param_value):
 def google_search_user_original(query, top_n=5): # MODIFIED: Removed pause_duration
     """Fetch URLs from Google's top N search results with random User-Agent."""
     try:
-        headers = {
-            "User-Agent": ua_general.random(), # FIXED: Call the method
+        headers_for_google = { # Renamed to avoid conflict if 'headers' is a special var name
+            "User-Agent": ua_general.random, # CORRECTED: Reverted to original access
             "Accept-Language": "en-US,en;q=0.9"
         }
-        # MODIFIED: Updated info message
         st.sidebar.info(f"Googling '{query}' (top {top_n})...")
-        # MODIFIED: Removed pause argument, library will use its default
-        urls = list(google_search_library(query, num_results=top_n, lang="en", headers=headers))
+        # MODIFIED: Removed pause argument, library will use its default.
+        # Kept num_results and headers as per user's original working code structure.
+        urls = list(google_search_library(query, num_results=top_n, lang="en", headers=headers_for_google))
         if not urls:
             st.warning(f"No search results found for '{query}'. Try refining your search terms.")
         return urls
@@ -103,7 +103,7 @@ def scrape_whatsapp_links_user_original(url):
     """Scrape WhatsApp group links from a webpage."""
     try:
         headers = {
-            "User-Agent": ua_general.random() # FIXED: Call the method
+            "User-Agent": ua_general.random # CORRECTED: Reverted to original access
         }
         response = requests.get(url, headers=headers, timeout=10)
         response.encoding = 'utf-8'
@@ -289,14 +289,14 @@ def main():
         ], key="input_method_main_select")
 
         google_results_slider_top_n = 5
-        # MODIFIED: Removed google_search_pause initialization
+        # REMOVED: google_search_pause variable and its initialization
 
         if input_method in ["Search and Scrape from Google", "Search & Scrape from Google (Bulk via Excel)"]:
             google_results_slider_top_n = st.slider(
                 "Google Results to Scrape (per keyword)",
-                min_value=1, max_value=20, value=google_results_slider_top_n, key="google_top_n_slider" # Use current value
+                min_value=1, max_value=20, value=google_results_slider_top_n, key="google_top_n_slider"
             )
-            # MODIFIED: Removed google_search_pause slider
+            # REMOVED: google_search_pause slider
         
         crawl_depth_val, max_crawl_pages_val = 2, 50
         if input_method == "Scrape from Entire Website (Extensive Crawl)":
@@ -319,7 +319,7 @@ def main():
                 if not keyword_gs: st.warning("Please enter a search query.")
                 else:
                     with st.spinner("Searching Google..."):
-                        # MODIFIED: Call to google_search_user_original updated
+                        # Call to google_search_user_original updated (no pause argument)
                         search_page_urls = google_search_user_original(keyword_gs, top_n=google_results_slider_top_n)
                     if search_page_urls:
                         st.success(f"Found {len(search_page_urls)} webpages. Scraping WhatsApp links...")
@@ -340,7 +340,7 @@ def main():
                     prog_bulk, stat_txt_bulk = st.progress(0), st.empty()
                     for i, kw_bulk in enumerate(keywords_bulk):
                         stat_txt_bulk.write(f"Keyword: **{kw_bulk}** ({i+1}/{len(keywords_bulk)})")
-                        # MODIFIED: Call to google_search_user_original updated
+                        # Call to google_search_user_original updated (no pause argument)
                         search_page_urls_bulk = google_search_user_original(kw_bulk, top_n=google_results_slider_top_n)
                         if search_page_urls_bulk:
                             for page_url_bulk in search_page_urls_bulk:
@@ -465,7 +465,6 @@ def main():
             negative_keywords = [kw.strip() for kw in negative_keywords_input.split(",") if kw.strip()]
             md_data_export = generate_markdown_output(active_df_display, negative_keywords)
             
-            # Calculate count after filtering for the message
             count_after_negative_filter = sum(1 for _, row in active_df_display.iterrows() if not any(kw.lower() in row.get('Group Name', '').lower() for kw in negative_keywords))
             st.markdown(f"Showing {count_after_negative_filter} out of {len(active_df_display)} active groups (after applying negative keywords).")
 
@@ -512,7 +511,7 @@ def main():
 if __name__ == "__main__":
     try: import openpyxl
     except ImportError: st.error("Library 'openpyxl' for Excel is missing. Please install: `pip install openpyxl`"); st.stop()
-    try: from fake_useragent import UserAgent; UserAgent() # Test initialization
+    try: from fake_useragent import UserAgent; UserAgent() 
     except ImportError: st.warning("Library 'fake-useragent' is missing. General scraping might be less effective. Install: `pip install fake-useragent`", icon="⚠️")
     except Exception: st.warning("Fake-useragent initialized with issues. General scraping might use a default User-Agent.", icon="⚠️")
     
