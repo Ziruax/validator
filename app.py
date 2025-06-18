@@ -218,13 +218,12 @@ def validate_link(link):
                     logo_found = True
                     break
         
-        # Updated logic: Only set to "Active" if group name is found, otherwise "Inactive" if still "Error"
+        # Logic: Only set to "Active" if group name is found, otherwise "Inactive" if still "Error"
         if result["Status"] == "Error":
             if group_name_found:
                 result["Status"] = "Active"
             else:
                 result["Status"] = "Inactive"
-        # Updated logic: Override "Expired" to "Active" only if group name is found
         elif result["Status"] == "Expired" and group_name_found:
             if soup.find('a', attrs={'id': 'action-button', 'href': link}):
                 result["Status"] = "Active"
@@ -574,6 +573,9 @@ def main():
         st.session_state.results = unique_results_df.to_dict('records')
         df_display_master = unique_results_df.reset_index(drop=True)
 
+        # Filter out 'Inactive' status from the master dataframe by default
+        df_display_master = df_display_master[df_display_master['Status'] != 'Inactive'].copy()
+
         active_df_all_master = df_display_master[df_display_master['Status'].str.contains('Active', na=False)].copy()
         expired_df_master = df_display_master[df_display_master['Status'] == 'Expired'].copy()
         error_df_master = df_display_master[~df_display_master['Status'].str.contains('Active', na=False) & (df_display_master['Status'] != 'Expired')].copy()
@@ -653,7 +655,8 @@ def main():
             all_statuses_master = sorted(list(df_display_master['Status'].unique()))
             st.session_state.adv_filter_status = st.multiselect(
                 "Filter by Status:", options=all_statuses_master,
-                default=st.session_state.adv_filter_status, key="adv_status_filter_multiselect_key"
+                default=st.session_state.adv_filter_status, key="adv_status_filter_multiselect_key",
+                help="Select statuses to include. Inactive groups are excluded by default unless selected here."
             )
 
             st.session_state.adv_filter_name_keywords = st.text_input(
@@ -668,6 +671,9 @@ def main():
             if st.session_state.adv_filter_status:
                 df_for_adv_download_or_view = df_for_adv_download_or_view[df_for_adv_download_or_view['Status'].isin(st.session_state.adv_filter_status)]
                 adv_filters_applied = True
+            else:
+                # By default, exclude 'Inactive' status unless explicitly selected
+                df_for_adv_download_or_view = df_for_adv_download_or_view[df_for_adv_download_or_view['Status'] != 'Inactive']
             if st.session_state.adv_filter_name_keywords:
                 adv_keywords_list = [kw.strip().lower() for kw in st.session_state.adv_filter_name_keywords.split(',') if kw.strip()]
                 if adv_keywords_list:
@@ -677,13 +683,17 @@ def main():
                     ]
                     adv_filters_applied = True
             
-            st.markdown(f"**Preview of Data for Download/Analysis ({'Filtered' if adv_filters_applied else 'All'} - {len(df_for_adv_download_or_view)} rows):**")
+            st.markdown(f"**Preview of Data for Download/Analysis ({'Filtered' if adv_filters_applied else 'All (Inactive Excluded)'} - {len(df_for_adv_download_or_view)} rows):**")
             st.dataframe(df_for_adv_download_or_view, column_config={
                 "Group Link": st.column_config.LinkColumn("Invite Link", display_text="Join", width="medium"),
                 "Group Name": st.column_config.TextColumn("Group Name", width="large"),
                 "Logo URL": st.column_config.LinkColumn("Logo URL", display_text="View", width="small"),
                 "Status": st.column_config.TextColumn("Status", width="small")
             }, hide_index=True, height=300, use_container_width=True)
+
+        # Clarifications for CSV downloads
+        st.info("The 'Active Groups (CSV)' download includes only groups with status 'Active' (valid group names required).", icon="ℹ️")
+        st.info("The 'All Processed Results (CSV)' excludes 'Inactive' groups by default (those without names). Use advanced filters to include other statuses or 'Inactive' if needed.", icon="ℹ️")
 
         # Downloads
         st.subheader("📥 Download Results (CSV)")
