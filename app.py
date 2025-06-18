@@ -169,6 +169,9 @@ def load_links_from_file(uploaded_file):
 # --- Core Logic Functions ---
 def validate_link(link):
     result = {"Group Name": UNNAMED_GROUP_PLACEHOLDER, "Group Link": link, "Logo URL": "", "Status": "Error"}
+    group_name_found = False # Initialize flag
+    logo_found = False # Initialize flag
+
     try:
         response = requests.get(link, headers=get_random_headers_general(), timeout=20, allow_redirects=True)
         response.encoding = 'utf-8'
@@ -186,7 +189,7 @@ def validate_link(link):
         if any(phrase in page_text_lower for phrase in expired_phrases):
             result["Status"] = "Expired"
 
-        group_name_found = False
+        # group_name_found is already initialized to False
         meta_title = soup.find('meta', property='og:title')
         if meta_title and meta_title.get('content'):
             group_name = html.unescape(meta_title['content']).strip()
@@ -198,7 +201,7 @@ def validate_link(link):
                 if text and len(text) > 2 and text.lower() not in ["whatsapp group invite", "whatsapp", "join group", "invite link"]:
                     result["Group Name"] = text; group_name_found = True; break
         
-        logo_found = False
+        # logo_found is already initialized to False
         meta_image = soup.find('meta', property='og:image')
         if meta_image and meta_image.get('content'):
             src = html.unescape(meta_image['content'])
@@ -210,11 +213,37 @@ def validate_link(link):
                 if src.startswith('https://pps.whatsapp.net/'):
                     result["Logo URL"] = src; logo_found = True; break
         
-        if result["Status"] == "Error":
-            result["Status"] = "Active"
-        elif result["Status"] == "Expired" and (group_name_found or logo_found):
-            if soup.find('a', attrs={'id': 'action-button', 'href': link}):
-                result["Status"] = "Active"
+        # --- MODIFIED VALIDATION LOGIC START ---
+        # Determine final status based on previous checks and group name presence
+        current_status_before_final_decision = result["Status"]
+        final_status_candidate = ""
+
+        if current_status_before_final_decision == "Error": # Default: no specific errors found yet
+            final_status_candidate = "Active"
+        elif current_status_before_final_decision == "Expired": # Marked "Expired" from page text
+            # Check if it can be upgraded to "Active" (e.g., has action button and some identifier)
+            if (group_name_found or logo_found) and soup.find('a', attrs={'id': 'action-button', 'href': link}):
+                final_status_candidate = "Active"
+            else:
+                final_status_candidate = "Expired" # Stays expired
+        else:
+            # It's already a specific error (e.g., "Expired (404 Not Found)", "HTTP Error XXX", "Redirected Away")
+            final_status_candidate = current_status_before_final_decision
+
+        # Now, apply the "no group name means inactive" rule
+        if not group_name_found:
+            # If no name was found, and it was otherwise going to be "Active",
+            # it becomes "Inactive (No Name)".
+            if final_status_candidate == "Active":
+                result["Status"] = "Inactive (No Name)"
+            else:
+                # If it was already "Expired", "HTTP Error 404", etc., and no name,
+                # it remains that specific status (which is already a form of inactive or error).
+                result["Status"] = final_status_candidate
+        else:
+            # Group name was found, so assign the determined candidate status.
+            result["Status"] = final_status_candidate
+        # --- MODIFIED VALIDATION LOGIC END ---
 
     except requests.exceptions.Timeout: result["Status"] = "Timeout Error"
     except requests.exceptions.ConnectionError: result["Status"] = "Connection Error"
@@ -556,7 +585,12 @@ def main():
 
         active_df_all_master = df_display_master[df_display_master['Status'].str.contains('Active', na=False)].copy()
         expired_df_master = df_display_master[df_display_master['Status'] == 'Expired'].copy()
-        error_df_master = df_display_master[~df_display_master['Status'].str.contains('Active', na=False) & (df_display_master['Status'] != 'Expired')].copy()
+        # Corrected definition for error_df_master to include "Inactive (No Name)" and other non-Active/Expired statuses
+        error_df_master = df_display_master[
+            ~df_display_master['Status'].str.contains('Active', na=False) & 
+            (df_display_master['Status'] != 'Expired')
+        ].copy()
+
 
         st.subheader("📊 Results Summary")
         col1, col2, col3, col4 = st.columns(4)
