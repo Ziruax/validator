@@ -74,10 +74,10 @@ st.set_page_config(
 )
 
 WHATSAPP_DOMAIN = "https://chat.whatsapp.com/"
-UNNAMED_GROUP_PLACEHOLDER = "Unnamed Group"
 IMAGE_PATTERN_PPS = re.compile(r'https://pps.whatsapp.net/v/t\d+/[-\w]+/\d+.jpg?')
 OG_IMAGE_PATTERN = re.compile(r'https?://[^\/\s]+/[^\/\s]+.(jpg|jpeg|png)(?[^\s]*)?')
 MAX_VALIDATION_WORKERS = 8
+GOOGLE_SEARCH_LIMIT = 100  # Increased from 20 to 100
 
 # Custom CSS
 st.markdown("""
@@ -169,7 +169,7 @@ def load_links_from_file(uploaded_file):
 
 # Core Logic Functions
 def validate_link(link):
-    result = {"Group Name": UNNAMED_GROUP_PLACEHOLDER, "Group Link": link, "Logo URL": "", "Status": "Error"}
+    result = {"Group Name": "", "Group Link": link, "Logo URL": "", "Status": "Inactive"}
     try:
         response = requests.get(link, headers=get_random_headers_general(), timeout=20, allow_redirects=True)
         response.encoding = 'utf-8'
@@ -186,47 +186,45 @@ def validate_link(link):
         expired_phrases = ["invite link is invalid", "invite link was reset", "group doesn't exist", "this group is no longer available"]
         if any(phrase in page_text_lower for phrase in expired_phrases):
             result["Status"] = "Expired"
+            return result
 
-        group_name_found = False
+        # Extract group name
+        group_name = None
         meta_title = soup.find('meta', property='og:title')
         if meta_title and meta_title.get('content'):
-            group_name = html.unescape(meta_title['content']).strip()
-            if group_name:
-                result["Group Name"] = group_name
-                group_name_found = True
-        if not group_name_found:
-            potential_name_tags = soup.find_all(['h2', 'strong', 'span'], class_=re.compile('group-name', re.IGNORECASE)) + soup.find_all('div', class_=re.compile('name', re.IGNORECASE))
+            potential_name = html.unescape(meta_title['content']).strip()
+            if potential_name and len(potential_name) > 2:
+                group_name = potential_name
+        if not group_name:
+            potential_name_tags = soup.find_all(['h2', 'strong', 'span'], class_=re.compile('group-name|name', re.IGNORECASE))
             for tag in potential_name_tags:
                 text = tag.get_text().strip()
                 if text and len(text) > 2 and text.lower() not in ["whatsapp group invite", "whatsapp", "join group", "invite link"]:
-                    result["Group Name"] = text
-                    group_name_found = True
+                    group_name = text
                     break
         
-        logo_found = False
+        # Extract logo URL
+        logo_url = None
         meta_image = soup.find('meta', property='og:image')
         if meta_image and meta_image.get('content'):
             src = html.unescape(meta_image['content'])
             if OG_IMAGE_PATTERN.match(src) or src.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
-                result["Logo URL"] = src
-                logo_found = True
-        if not logo_found:
+                logo_url = src
+        if not logo_url:
             for img in soup.find_all('img', src=True):
                 src = html.unescape(img['src'])
                 if src.startswith('https://pps.whatsapp.net/'):
-                    result["Logo URL"] = src
-                    logo_found = True
+                    logo_url = src
                     break
         
-        # Logic: Only set to "Active" if group name is found, otherwise "Inactive" if still "Error"
-        if result["Status"] == "Error":
-            if group_name_found:
-                result["Status"] = "Active"
-            else:
-                result["Status"] = "Inactive"
-        elif result["Status"] == "Expired" and group_name_found:
-            if soup.find('a', attrs={'id': 'action-button', 'href': link}):
-                result["Status"] = "Active"
+        # Set status based on group name presence
+        if group_name:
+            result["Group Name"] = group_name
+            result["Status"] = "Active"
+            if logo_url:
+                result["Logo URL"] = logo_url
+        else:
+            result["Status"] = "Inactive"
 
     except requests.exceptions.Timeout:
         result["Status"] = "Timeout Error"
@@ -269,7 +267,7 @@ def scrape_whatsapp_links_from_page(url, session=None):
         st.sidebar.warning(f"Scrape Parse Err ({type(e).__name__}): {url[:50]}...", icon="💣")
     return list(links)
 
-def google_search_and_scrape(query, top_n=5):
+def google_search_and_scrape(query, top_n=GOOGLE_SEARCH_LIMIT):
     st.info(f"Googling '{query}' (top {top_n} results)...")
     all_scraped_wa_links = set()
     try:
@@ -361,9 +359,9 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
     return scraped_whatsapp_links
 
 def generate_styled_html_table(data_df_for_table):
-    df_to_display = data_df_for_table[data_df_for_table['Group Name'] != UNNAMED_GROUP_PLACEHOLDER].copy()
+    df_to_display = data_df_for_table[data_df_for_table['Status'] == 'Active'].copy()
     if df_to_display.empty:
-        return "<p style='text-align:center; color:#777; margin-top:20px;'><i>No groups match the current display filters. Try adjusting them.</i></p>"
+        return "<p style='text-align:center; color:#777; margin-top:20px;'><i>No active groups match the current display filters. Try adjusting them.</i></p>"
 
     html_string = '<table class="whatsapp-groups-table" aria-label="List of Active WhatsApp Groups">'
     html_string += '<caption>Filtered Active WhatsApp Groups</caption>'
@@ -375,7 +373,7 @@ def generate_styled_html_table(data_df_for_table):
     html_string += '<tbody>'
     for _, row in df_to_display.iterrows():
         logo_url = row.get("Logo URL", "")
-        group_name = row.get("Group Name", UNNAMED_GROUP_PLACEHOLDER)
+        group_name = row.get("Group Name", "")
         group_link = row.get("Group Link", "")
         html_string += '<tr>'
         html_string += '<td class="group-logo-cell">'
@@ -407,7 +405,7 @@ def main():
     if 'processed_links_in_session' not in st.session_state: st.session_state.processed_links_in_session = set()
     if 'styled_table_name_keywords' not in st.session_state: st.session_state.styled_table_name_keywords = ""
     if 'styled_table_current_limit_value' not in st.session_state: st.session_state.styled_table_current_limit_value = 50
-    if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = []
+    if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = ['Active']
     if 'adv_filter_name_keywords' not in st.session_state: st.session_state.adv_filter_name_keywords = ""
 
     # Ensure processed_links_in_session is a set and populate it
@@ -434,7 +432,7 @@ def main():
 
         gs_top_n = 5
         if input_method in ["Search and Scrape from Google", "Search & Scrape from Google (Bulk via Excel)", "Upload Link File (TXT/CSV/Excel)"]:
-            gs_top_n = st.slider("Google Results to Scrape (per keyword)", 1, 20, 5, key="gs_top_n_slider", help="Number of Google search result pages to analyze per keyword.")
+            gs_top_n = st.slider("Google Results to Scrape (per keyword)", 1, GOOGLE_SEARCH_LIMIT, 5, key="gs_top_n_slider", help="Number of Google search result pages to analyze per keyword.")
         
         crawl_depth, crawl_pages = 2, 50
         if input_method == "Scrape from Entire Website (Extensive Crawl)":
@@ -447,7 +445,7 @@ def main():
             st.session_state.results, st.session_state.processed_links_in_session = [], set()
             st.session_state.styled_table_name_keywords = ""
             st.session_state.styled_table_current_limit_value = 50
-            st.session_state.adv_filter_status = []
+            st.session_state.adv_filter_status = ['Active']
             st.session_state.adv_filter_name_keywords = ""
             st.cache_data.clear(); st.success("Results & filters cleared!"); st.rerun()
 
@@ -557,7 +555,7 @@ def main():
                     parsed_url_val_err = urlparse(link_validated)
                     normalized_link_val_err = f"{parsed_url_val_err.scheme}://{parsed_url_val_err.netloc}{parsed_url_val_err.path}"
                     st.session_state.processed_links_in_session.add(normalized_link_val_err)
-                    new_results_this_run.append({"Group Name": "Validation Error", "Group Link": link_validated, "Logo URL": "", "Status": f"Validation Failed: {type(val_exc).__name__}"})
+                    new_results_this_run.append({"Group Name": "", "Group Link": link_validated, "Logo URL": "", "Status": f"Validation Failed: {type(val_exc).__name__}"})
                 prog_val.progress((i+1)/len(links_to_validate_now))
                 stat_val.text(f"Validated {i+1}/{len(links_to_validate_now)} links")
         
@@ -671,9 +669,6 @@ def main():
             if st.session_state.adv_filter_status:
                 df_for_adv_download_or_view = df_for_adv_download_or_view[df_for_adv_download_or_view['Status'].isin(st.session_state.adv_filter_status)]
                 adv_filters_applied = True
-            else:
-                # By default, exclude 'Inactive' status unless explicitly selected
-                df_for_adv_download_or_view = df_for_adv_download_or_view[df_for_adv_download_or_view['Status'] != 'Inactive']
             if st.session_state.adv_filter_name_keywords:
                 adv_keywords_list = [kw.strip().lower() for kw in st.session_state.adv_filter_name_keywords.split(',') if kw.strip()]
                 if adv_keywords_list:
