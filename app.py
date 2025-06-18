@@ -9,16 +9,17 @@ import io
 from urllib.parse import urljoin, urlparse, urlencode, parse_qs
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- Import Google Search Library ---
+# Import Google Search Library
 try:
     from googlesearch import search as google_search_function_actual
 except ImportError:
-    st.error("The `googlesearch-python` library is not installed. Please install it: `pip install googlesearch-python`")
-    def google_search_function_actual(query, num_results, lang, **kwargs):
-        st.error("`googlesearch-python` library not found. Cannot perform Google searches.")
-        return []
+    st.error("The googlesearch-python library is not installed. Please install it: pip install googlesearch-python")
 
-# --- Import Fake User Agent Library ---
+def google_search_function_actual(query, num_results, lang, **kwargs):
+    st.error("googlesearch-python library not found. Cannot perform Google searches.")
+    return []
+
+# Import Fake User Agent Library
 try:
     from fake_useragent import UserAgent
     from fake_useragent.errors import FakeUserAgentError
@@ -35,14 +36,15 @@ try:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9"
             }
-        except Exception as e_random:
-            st.warning(f"Error getting random User-Agent: {e_random}. Using fallback.", icon="⚠️")
-            return {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Accept-Language": "en-US,en;q=0.9"
-            }
+except Exception as e_random:
+    st.warning(f"Error getting random User-Agent: {e_random}. Using fallback.", icon="⚠️")
+    def get_random_headers_general():
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+        }
 except ImportError:
-    st.warning("`fake-useragent` library not found. Install with `pip install fake-useragent`. Using default User-Agent.", icon="⚠️")
+    st.warning("fake-useragent library not found. Install with pip install fake-useragent. Using default User-Agent.", icon="⚠️")
     def get_random_headers_general():
         return {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -63,7 +65,7 @@ except Exception as e_general_init:
             "Accept-Language": "en-US,en;q=0.9"
         }
 
-# --- Streamlit Configuration & Constants ---
+# Streamlit Configuration & Constants
 st.set_page_config(
     page_title="WhatsApp Link Scraper & Validator",
     page_icon="🚀",
@@ -73,11 +75,11 @@ st.set_page_config(
 
 WHATSAPP_DOMAIN = "https://chat.whatsapp.com/"
 UNNAMED_GROUP_PLACEHOLDER = "Unnamed Group"
-IMAGE_PATTERN_PPS = re.compile(r'https:\/\/pps\.whatsapp\.net\/v\/t\d+\/[-\w]+\/\d+\.jpg\?')
-OG_IMAGE_PATTERN = re.compile(r'https?:\/\/[^\/\s]+\/[^\/\s]+\.(jpg|jpeg|png)(\?[^\s]*)?')
+IMAGE_PATTERN_PPS = re.compile(r'https://pps.whatsapp.net/v/t\d+/[-\w]+/\d+.jpg?')
+OG_IMAGE_PATTERN = re.compile(r'https?://[^\/\s]+/[^\/\s]+.(jpg|jpeg|png)(?[^\s]*)?')
 MAX_VALIDATION_WORKERS = 8
 
-# --- Custom CSS ---
+# Custom CSS
 st.markdown("""
 <style>
 body { font-family: 'Arial', sans-serif; }
@@ -96,7 +98,7 @@ body { font-family: 'Arial', sans-serif; }
 .stExpander div[data-testid="stExpanderToggleIcon"] { color: #25D366; font-size: 1.2em; }
 .stExpander div[data-testid="stExpanderLabel"] strong { color: #1EBE5A; font-size: 1.1em; }
 .filter-container { background-color: #FDFDFD; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #DDE2E5; }
-.filter-container .stTextInput input, .filter-container .stNumberInput input { background-color: #fff;zczy}
+.filter-container .stTextInput input, .filter-container .stNumberInput input { background-color: #fff; }
 h4 { color: #259952; margin-top:10px; margin-bottom:10px; border-left: 3px solid #25D366; padding-left: 8px;}
 .whatsapp-groups-table { border-collapse: collapse; width: 100%; margin-top: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); border-radius: 8px; overflow: hidden; border: 1px solid #DEE2E6; }
 .whatsapp-groups-table caption { caption-side: top; text-align: left; font-weight: 600; padding: 12px 15px; font-size: 1.15em; color: #343A40; background-color: #F8F9FA; border-bottom: 1px solid #DEE2E6;}
@@ -118,7 +120,7 @@ h4 { color: #259952; margin-top:10px; margin-bottom:10px; border-left: 3px solid
 </style>
 """, unsafe_allow_html=True)
 
-# --- Helper Functions ---
+# Helper Functions
 def append_query_param(url, param_name, param_value):
     if not url: return ""
     parsed_url = urlparse(url)
@@ -132,12 +134,12 @@ def load_keywords_from_excel(uploaded_file):
     if uploaded_file is None: return []
     try:
         df = pd.read_excel(io.BytesIO(uploaded_file.getvalue()), engine='openpyxl')
-        if df.empty: st.warning("Excel file is empty."); return []
+        if df.empty: st.warning("Excel Haunted by Empty Rows. No Keywords Found."); return []
         keywords = [kw.strip() for kw in df.iloc[:, 0].dropna().astype(str).tolist() if len(kw.strip()) > 1]
-        if not keywords: st.warning("No valid keywords found in the first column of the Excel file.")
+        if not keywords: st.warning("No Valid Keywords in First Column of Excel.")
         return keywords
     except Exception as e:
-        st.error(f"Error reading Excel: {e}. Ensure 'openpyxl' is installed.", icon="❌")
+        st.error(f"Error Reading Excel: {e}. Ensure 'openpyxl' is Installed.", icon="❌")
         return []
 
 def load_links_from_file(uploaded_file):
@@ -148,25 +150,24 @@ def load_links_from_file(uploaded_file):
         for encoding in ['utf-8', 'latin-1', 'cp1252']:
             try:
                 text_content = content.decode(encoding)
-                st.sidebar.info(f"Decoded file with {encoding}.")
+                st.sidebar.info(f"Decoded File with {encoding}.")
                 break
             except UnicodeDecodeError: continue
         if text_content is None:
-            st.error(f"Could not decode file {uploaded_file.name}.", icon="❌"); return []
-
+            st.error(f"Could Not Decode File {uploaded_file.name}.", icon="❌"); return []
         if uploaded_file.name.endswith('.csv'):
             try:
                 df = pd.read_csv(io.StringIO(text_content))
-                if df.empty: st.warning("CSV file is empty."); return []
+                if df.empty: st.warning("CSV File is Empty."); return []
                 return [link.strip() for link in df.iloc[:, 0].dropna().astype(str).tolist() if link.strip().startswith(('http://', 'https://'))]
             except Exception as e:
-                st.error(f"Error reading CSV: {e}.", icon="❌"); return []
-        else: # Assume TXT
+                st.error(f"Error Reading CSV: {e}.", icon="❌"); return []
+        else:  # Assume TXT
             return [line.strip() for line in text_content.splitlines() if line.strip()]
     except Exception as e:
-        st.error(f"Error processing file {uploaded_file.name}: {e}", icon="❌"); return []
+        st.error(f"Error Processing File {uploaded_file.name}: {e}", icon="❌"); return []
 
-# --- Core Logic Functions ---
+# Core Logic Functions
 def validate_link(link):
     result = {"Group Name": UNNAMED_GROUP_PLACEHOLDER, "Group Link": link, "Logo URL": "", "Status": "Error"}
     try:
@@ -179,7 +180,7 @@ def validate_link(link):
             final_netloc = urlparse(response.url).netloc or 'Unknown Site'
             result["Status"] = f"Redirected Away ({final_netloc})"
             return result
-
+        
         soup = BeautifulSoup(response.text, 'html.parser')
         page_text_lower = soup.get_text().lower()
         expired_phrases = ["invite link is invalid", "invite link was reset", "group doesn't exist", "this group is no longer available"]
@@ -190,36 +191,52 @@ def validate_link(link):
         meta_title = soup.find('meta', property='og:title')
         if meta_title and meta_title.get('content'):
             group_name = html.unescape(meta_title['content']).strip()
-            if group_name: result["Group Name"] = group_name; group_name_found = True
+            if group_name:
+                result["Group Name"] = group_name
+                group_name_found = True
         if not group_name_found:
             potential_name_tags = soup.find_all(['h2', 'strong', 'span'], class_=re.compile('group-name', re.IGNORECASE)) + soup.find_all('div', class_=re.compile('name', re.IGNORECASE))
             for tag in potential_name_tags:
                 text = tag.get_text().strip()
                 if text and len(text) > 2 and text.lower() not in ["whatsapp group invite", "whatsapp", "join group", "invite link"]:
-                    result["Group Name"] = text; group_name_found = True; break
+                    result["Group Name"] = text
+                    group_name_found = True
+                    break
         
         logo_found = False
         meta_image = soup.find('meta', property='og:image')
         if meta_image and meta_image.get('content'):
             src = html.unescape(meta_image['content'])
             if OG_IMAGE_PATTERN.match(src) or src.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
-                result["Logo URL"] = src; logo_found = True
+                result["Logo URL"] = src
+                logo_found = True
         if not logo_found:
             for img in soup.find_all('img', src=True):
                 src = html.unescape(img['src'])
                 if src.startswith('https://pps.whatsapp.net/'):
-                    result["Logo URL"] = src; logo_found = True; break
+                    result["Logo URL"] = src
+                    logo_found = True
+                    break
         
+        # Updated logic: Only set to "Active" if group name is found, otherwise "Inactive" if still "Error"
         if result["Status"] == "Error":
-            result["Status"] = "Active"
-        elif result["Status"] == "Expired" and (group_name_found or logo_found):
+            if group_name_found:
+                result["Status"] = "Active"
+            else:
+                result["Status"] = "Inactive"
+        # Updated logic: Override "Expired" to "Active" only if group name is found
+        elif result["Status"] == "Expired" and group_name_found:
             if soup.find('a', attrs={'id': 'action-button', 'href': link}):
                 result["Status"] = "Active"
 
-    except requests.exceptions.Timeout: result["Status"] = "Timeout Error"
-    except requests.exceptions.ConnectionError: result["Status"] = "Connection Error"
-    except requests.exceptions.RequestException as e: result["Status"] = f"Network Error ({type(e).__name__})"
-    except Exception as e: result["Status"] = f"Parsing Error ({type(e).__name__})"
+    except requests.exceptions.Timeout:
+        result["Status"] = "Timeout Error"
+    except requests.exceptions.ConnectionError:
+        result["Status"] = "Connection Error"
+    except requests.exceptions.RequestException as e:
+        result["Status"] = f"Network Error ({type(e).__name__})"
+    except Exception as e:
+        result["Status"] = f"Parsing Error ({type(e).__name__})"
     return result
 
 def scrape_whatsapp_links_from_page(url, session=None):
@@ -237,17 +254,20 @@ def scrape_whatsapp_links_from_page(url, session=None):
                 links.add(f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}")
         text_content = soup.get_text()
         if WHATSAPP_DOMAIN in text_content:
-            for link_url in re.findall(r'(https?://chat\.whatsapp\.com/[^\s"\'<>()\[\]{}]+)', text_content):
-                clean_link = re.sub(r'[.,;!?"\'<>)]+$', '', link_url)
-                clean_link = re.sub(r'(\.[a-zA-Z]{2,4})$', '', clean_link) if not clean_link.endswith(('.html', '.htm', '.php')) else clean_link
-                clean_link = clean_link.split('&')[0] 
+            for link_url in re.findall(r'(https?://chat.whatsapp.com/[^\s"\'<>()\[\]{}]+)', text_content):
+                clean_link = re.sub(r'[.,;!?"\'<>()\[\]{}]+$', '', link_url)
+                clean_link = clean_link.split('&')[0]
                 parsed_url = urlparse(clean_link)
                 if len(parsed_url.path.replace('/', '')) > 15:
                     links.add(f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}")
-    except requests.exceptions.Timeout: st.sidebar.warning(f"Scrape Timeout: {url[:50]}...", icon="⏱️")
-    except requests.exceptions.HTTPError as e: st.sidebar.warning(f"Scrape HTTP Err {e.response.status_code}: {url[:50]}...", icon="⚠️")
-    except requests.exceptions.RequestException as e: st.sidebar.warning(f"Scrape Net Err ({type(e).__name__}): {url[:50]}...", icon="⚠️")
-    except Exception as e: st.sidebar.warning(f"Scrape Parse Err ({type(e).__name__}): {url[:50]}...", icon="💣")
+    except requests.exceptions.Timeout:
+        st.sidebar.warning(f"Scrape Timeout: {url[:50]}...", icon="⏱️")
+    except requests.exceptions.HTTPError as e:
+        st.sidebar.warning(f"Scrape HTTP Err {e.response.status_code}: {url[:50]}...", icon="⚠️")
+    except requests.exceptions.RequestException as e:
+        st.sidebar.warning(f"Scrape Net Err ({type(e).__name__}): {url[:50]}...", icon="⚠️")
+    except Exception as e:
+        st.sidebar.warning(f"Scrape Parse Err ({type(e).__name__}): {url[:50]}...", icon="💣")
     return list(links)
 
 def google_search_and_scrape(query, top_n=5):
@@ -259,9 +279,8 @@ def google_search_and_scrape(query, top_n=5):
             st.warning(f"No Google results for '{query}'. Possible reasons: "
                        f"1. Query yields no results. "
                        f"2. Google blocking (try VPN/wait). "
-                       f"3. `googlesearch-python` library issue.", icon="🤔")
+                       f"3. googlesearch-python library issue.", icon="🤔")
             return []
-
         st.success(f"Found {len(search_page_urls)} pages from Google. Scraping them for WhatsApp links...")
         prog_bar, stat_txt = st.progress(0), st.empty()
         with requests.Session() as scrape_session:
@@ -320,7 +339,6 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
                         newly_found_count += 1
                 if newly_found_count > 0:
                     st.sidebar.info(f"Crawl: Found {newly_found_count} new WA links on {current_url[:30]}...")
-
                 if depth < max_depth:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     for link_tag in soup.find_all('a', href=True):
@@ -334,8 +352,10 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
                                 normalized_abs_url = urljoin(abs_url, parsed_abs_url.path or '/')
                                 if normalized_abs_url not in visited_urls and (abs_url, depth + 1) not in urls_in_queue_tuples:
                                     queue_list.append((abs_url, depth + 1)); urls_in_queue_tuples.add((abs_url, depth + 1))
-            except requests.exceptions.RequestException as e: st.sidebar.warning(f"Crawl Req Err ({type(e).__name__}): {current_url[:50]}...", icon="🕸️")
-            except Exception as e: st.sidebar.error(f"Crawl Parse Err ({type(e).__name__}): {current_url[:50]}...", icon="💥")
+            except requests.exceptions.RequestException as e:
+                st.sidebar.warning(f"Crawl Req Err ({type(e).__name__}): {current_url[:50]}...", icon="🕸️")
+            except Exception as e:
+                st.sidebar.error(f"Crawl Parse Err ({type(e).__name__}): {current_url[:50]}...", icon="💥")
     st.sidebar.success(f"Crawl done. Scraped {page_count} pages, found {len(scraped_whatsapp_links)} links.")
     if page_count >= max_pages: st.sidebar.warning(f"Stopped at {max_pages} pages.", icon="❗️")
     if len(queue_list) > max_q_size: st.sidebar.warning(f"Queue capped at {max_q_size}.", icon="❗️")
@@ -343,7 +363,6 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
 
 def generate_styled_html_table(data_df_for_table):
     df_to_display = data_df_for_table[data_df_for_table['Group Name'] != UNNAMED_GROUP_PLACEHOLDER].copy()
-    
     if df_to_display.empty:
         return "<p style='text-align:center; color:#777; margin-top:20px;'><i>No groups match the current display filters. Try adjusting them.</i></p>"
 
@@ -379,7 +398,7 @@ def generate_styled_html_table(data_df_for_table):
     html_string += '</tbody></table>'
     return html_string
 
-# --- Main Application Logic ---
+# Main Application Logic
 def main():
     st.markdown('<h1 class="main-title">WhatsApp Link Scraper & Validator 🚀</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Discover, Scrape, Validate, and Manage WhatsApp Group Links with Enhanced Filtering.</p>', unsafe_allow_html=True)
@@ -515,6 +534,7 @@ def main():
                         current_action_scraped_links.update(valid_links)
                     else: st.warning("No links in file.")
                 else: st.warning("Unsupported file. Use .txt, .csv, or .xlsx.")
+
     except Exception as e: st.error(f"Input/Scraping Error: {e}", icon="💥")
 
     # Validation
@@ -621,7 +641,7 @@ def main():
                 st.markdown(html_out, unsafe_allow_html=True)
                 st.markdown("---")
                 st.text_area("Copy Raw HTML Code (above table):", value=html_out, height=150, key="styled_html_export_area_key", help="Ctrl+A, Ctrl+C")
-                st.markdown('</div>', unsafe_allow_html=True) # Close filter-container
+                st.markdown('</div>', unsafe_allow_html=True)  # Close filter-container
             else:
                 st.info("No active groups found yet to display here.")
 
