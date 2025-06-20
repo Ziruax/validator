@@ -6,9 +6,8 @@ from bs4 import BeautifulSoup
 import re
 import time
 import io
-import traceback
 from urllib.parse import urljoin, urlparse, urlencode, parse_qs
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Import Google Search Library ---
 try:
@@ -81,29 +80,48 @@ MAX_VALIDATION_WORKERS = 8
 # --- Custom CSS ---
 st.markdown("""
 <style>
-/* ... (existing CSS remains the same) ... */
-.expander-collapsed .streamlit-expanderHeader:after {
-    content: "+";
-    float: right;
-    font-weight: bold;
-}
-.expander-expanded .streamlit-expanderHeader:after {
-    content: "-";
-    float: right;
-    font-weight: bold;
-}
-.progress-container {
-    position: relative;
-    margin-bottom: 15px;
-}
-.progress-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-weight: bold;
-    color: #333;
-}
+body { font-family: 'Arial', sans-serif; }
+.main-title { font-size: 2.8em; color: #25D366; text-align: center; margin-bottom: 0; font-weight: 600; letter-spacing: -1px; }
+.subtitle { font-size: 1.3em; color: #555; text-align: center; margin-top: 5px; margin-bottom: 30px; }
+.stButton>button { background-color: #25D366; color: #FFFFFF; border-radius: 8px; font-weight: bold; border: none; padding: 10px 18px; margin: 8px 0; transition: background-color 0.3s ease, transform 0.1s ease; }
+.stButton>button:hover { background-color: #1EBE5A; transform: scale(1.03); }
+.stButton>button:active { transform: scale(0.98); }
+.stProgress > div > div > div > div { background-color: #25D366; border-radius: 4px; }
+.metric-card { background-color: #F8F9FA; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); color: #333; text-align: center; margin-bottom: 15px; border: 1px solid #E9ECEF; }
+.metric-card .metric-value { font-size: 2em; font-weight: 700; margin-top: 5px; margin-bottom: 0; line-height: 1.2; color: #25D366; }
+.stTextInput > div > div > input, .stTextArea > div > textarea, .stNumberInput > div > div > input { border: 1px solid #CED4DA !important; border-radius: 6px !important; padding: 10px !important; box-shadow: inset 0 1px 2px rgba(0,0,0,0.075); }
+.stTextInput > div > div > input:focus, .stTextArea > div > textarea:focus, .stNumberInput > div > div > input:focus { border-color: #25D366 !important; box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25) !important; }
+.st-emotion-cache-1v3rj08, .st-emotion-cache-gh2jqd, .streamlit-expanderHeader { background-color: #F8F9FA; border-radius: 6px; }
+.stExpander { border: 1px solid #E9ECEF; border-radius: 8px; padding: 12px; margin-top: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+.stExpander div[data-testid="stExpanderToggleIcon"] { color: #25D366; font-size: 1.2em; }
+.stExpander div[data-testid="stExpanderLabel"] strong { color: #1EBE5A; font-size: 1.1em; }
+.filter-container { background-color: #FDFDFD; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #DDE2E5; }
+.filter-container .stTextInput input, .filter-container .stNumberInput input { background-color: #fff;zczy}
+h4 { color: #259952; margin-top:10px; margin-bottom:10px; border-left: 3px solid #25D366; padding-left: 8px;}
+.whatsapp-groups-table { border-collapse: collapse; width: 100%; margin-top: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); border-radius: 8px; overflow: hidden; border: 1px solid #DEE2E6; }
+.whatsapp-groups-table caption { caption-side: top; text-align: left; font-weight: 600; padding: 12px 15px; font-size: 1.15em; color: #343A40; background-color: #F8F9FA; border-bottom: 1px solid #DEE2E6;}
+.whatsapp-groups-table th { background-color: #343A40; color: white; padding: 14px 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.9em; }
+.whatsapp-groups-table th:nth-child(1) { text-align: center; width: 80px; }
+.whatsapp-groups-table th:nth-child(2) { text-align: left; }
+.whatsapp-groups-table th:nth-child(3) { text-align: right; width: 150px; }
+.whatsapp-groups-table tr { border-bottom: 1px solid #EAEEF2; }
+.whatsapp-groups-table tr:last-child { border-bottom: none; }
+.whatsapp-groups-table tr:nth-child(even) { background-color: #F9FAFB; }
+.whatsapp-groups-table tr:hover { background-color: #EFF8FF; }
+.whatsapp-groups-table td { padding: 12px; vertical-align: middle; text-align: left; font-size: 0.95em; }
+.whatsapp-groups-table td:nth-child(1) { width: 60px; padding-right: 8px; text-align: center; }
+.whatsapp-groups-table td:nth-child(2) { padding-left: 8px; padding-right: 12px; word-break: break-word; font-weight: 500; color: #212529; }
+.whatsapp-groups-table td:nth-child(3) { width: 140px; text-align: right; padding-left: 12px; }
+.group-logo-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto; border: 2px solid #F0F0F0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.join-button { display: inline-block; background-color: #25D366; color: #FFFFFF !important; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 500; text-align: center; white-space: nowrap; font-size: 0.85em; transition: background-color 0.2s ease, transform 0.1s ease; }
+.join-button:hover { background-color: #1DB954; color: #FFFFFF !important; text-decoration: none; transform: translateY(-1px); }
+
+/* Expand/Collapse Toggle Styles */
+.toggle-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.toggle-header { display: flex; align-items: center; cursor: pointer; }
+.toggle-icon { margin-right: 8px; font-size: 1.2em; transition: transform 0.3s; }
+.toggle-icon.collapsed { transform: rotate(-90deg); }
+.toggle-buttons { display: flex; gap: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -205,9 +223,10 @@ def validate_link(link):
             if soup.find('a', attrs={'id': 'action-button', 'href': link}):
                 result["Status"] = "Active"
         
-        # New validation rules
+        # New validation rule: Active status requires valid group name
         if result["Status"] == "Active" and not result["Group Name"].strip():
             result["Status"] = "Expire"
+        # Groups without valid names are marked "Expire"
         elif not result["Group Name"].strip():
             result["Status"] = "Expire"
 
@@ -216,6 +235,7 @@ def validate_link(link):
     except requests.exceptions.RequestException as e: result["Status"] = f"Network Error ({type(e).__name__})"
     except Exception as e: 
         result["Status"] = f"Parsing Error ({type(e).__name__})"
+        # Apply rule after exception
         if not result["Group Name"].strip():
             result["Status"] = "Expire"
     return result
@@ -295,11 +315,6 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
     urls_in_queue_tuples, visited_urls, queue_list = set(), set(), []
     queue_list.append((start_url, 0)); urls_in_queue_tuples.add((start_url, 0))
     page_count, max_q_size = 0, max_pages * 10
-    
-    # Create progress bar for crawling
-    crawl_progress = st.progress(0)
-    status_text = st.empty()
-    
     with requests.Session() as session, st.spinner(f"Crawling {base_domain}..."):
         while queue_list and page_count < max_pages:
             if len(queue_list) > max_q_size:
@@ -309,12 +324,7 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
             if normalized_current_url in visited_urls or depth > max_depth: continue
             visited_urls.add(normalized_current_url)
             if page_count >= max_pages: break
-            
-            # Update progress
-            progress = min(page_count / max_pages, 1.0)
-            crawl_progress.progress(progress)
-            status_text.text(f"Crawled: {page_count}/{max_pages} pages | Queue: {len(queue_list)} | Depth: {depth}")
-            
+            st.sidebar.text(f"Crawl (D:{depth},P:{page_count+1},Q:{len(queue_list)}): {current_url[:50]}...")
             try:
                 response = session.get(current_url, headers=get_random_headers_general(), timeout=10)
                 response.raise_for_status()
@@ -342,13 +352,8 @@ def crawl_website(start_url, max_depth=2, max_pages=50):
                                 normalized_abs_url = urljoin(abs_url, parsed_abs_url.path or '/')
                                 if normalized_abs_url not in visited_urls and (abs_url, depth + 1) not in urls_in_queue_tuples:
                                     queue_list.append((abs_url, depth + 1)); urls_in_queue_tuples.add((abs_url, depth + 1))
-            except requests.exceptions.RequestException as e: 
-                st.sidebar.warning(f"Crawl Req Err ({type(e).__name__}): {current_url[:50]}...", icon="🕸️")
-            except Exception as e: 
-                st.sidebar.error(f"Crawl Parse Err ({type(e).__name__}): {current_url[:50]}...", icon="💥")
-    
-    crawl_progress.progress(1.0)
-    status_text.text(f"Crawl complete: Scraped {page_count} pages, found {len(scraped_whatsapp_links)} links.")
+            except requests.exceptions.RequestException as e: st.sidebar.warning(f"Crawl Req Err ({type(e).__name__}): {current_url[:50]}...", icon="🕸️")
+            except Exception as e: st.sidebar.error(f"Crawl Parse Err ({type(e).__name__}): {current_url[:50]}...", icon="💥")
     st.sidebar.success(f"Crawl done. Scraped {page_count} pages, found {len(scraped_whatsapp_links)} links.")
     if page_count >= max_pages: st.sidebar.warning(f"Stopped at {max_pages} pages.", icon="❗️")
     if len(queue_list) > max_q_size: st.sidebar.warning(f"Queue capped at {max_q_size}.", icon="❗️")
@@ -397,31 +402,17 @@ def main():
     st.markdown('<h1 class="main-title">WhatsApp Link Scraper & Validator 🚀</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Discover, Scrape, Validate, and Manage WhatsApp Group Links with Enhanced Filtering.</p>', unsafe_allow_html=True)
 
-    # Initialize session state with more robust structure
-    if 'results' not in st.session_state: 
-        st.session_state.results = []
-    if 'processed_links_in_session' not in st.session_state: 
-        st.session_state.processed_links_in_session = set()
-    if 'styled_table_name_keywords' not in st.session_state: 
-        st.session_state.styled_table_name_keywords = ""
-    if 'styled_table_current_limit_value' not in st.session_state: 
-        st.session_state.styled_table_current_limit_value = 50
-    if 'adv_filter_status' not in st.session_state: 
-        st.session_state.adv_filter_status = ["Active"]  # Active as default filter
-    if 'adv_filter_name_keywords' not in st.session_state: 
-        st.session_state.adv_filter_name_keywords = ""
-    if 'current_action_scraped_links' not in st.session_state: 
-        st.session_state.current_action_scraped_links = set()
-    if 'validation_in_progress' not in st.session_state: 
-        st.session_state.validation_in_progress = False
-    if 'validation_progress' not in st.session_state: 
-        st.session_state.validation_progress = 0
-    if 'validation_total' not in st.session_state: 
-        st.session_state.validation_total = 0
-    if 'validation_completed' not in st.session_state: 
-        st.session_state.validation_completed = 0
-    if 'crawl_in_progress' not in st.session_state: 
-        st.session_state.crawl_in_progress = False
+    # Initialize session state
+    if 'results' not in st.session_state: st.session_state.results = []
+    if 'processed_links_in_session' not in st.session_state: st.session_state.processed_links_in_session = set()
+    if 'styled_table_name_keywords' not in st.session_state: st.session_state.styled_table_name_keywords = ""
+    if 'styled_table_current_limit_value' not in st.session_state: st.session_state.styled_table_current_limit_value = 50
+    # Set default filter to Active
+    if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = ["Active"]
+    if 'adv_filter_name_keywords' not in st.session_state: st.session_state.adv_filter_name_keywords = ""
+    # State for toggles
+    if 'show_html_table' not in st.session_state: st.session_state.show_html_table = False
+    if 'show_csv_preview' not in st.session_state: st.session_state.show_csv_preview = False
 
     # Ensure processed_links_in_session is a set and populate it
     if not isinstance(st.session_state.processed_links_in_session, set):
@@ -445,49 +436,37 @@ def main():
             "Enter Links Manually (for Validation)", "Upload Link File (TXT/CSV/Excel)"
         ], key="input_method_main_select")
 
-        # Increased Google search limit to 50
         gs_top_n = 5
         if input_method in ["Search and Scrape from Google", "Search & Scrape from Google (Bulk via Excel)", "Upload Link File (TXT/CSV/Excel)"]:
-            gs_top_n = st.slider("Google Results to Scrape (per keyword)", 1, 50, 5, key="gs_top_n_slider", 
-                                 help="Number of Google search result pages to analyze per keyword (max 50).")
+            gs_top_n = st.slider("Google Results to Scrape (per keyword)", 1, 20, 5, key="gs_top_n_slider", help="Number of Google search result pages to analyze per keyword.")
         
-        # Increased scraping limits
         crawl_depth, crawl_pages = 2, 50
         if input_method == "Scrape from Entire Website (Extensive Crawl)":
             st.warning("⚠️ Extensive crawl can be slow. Use with caution.", icon="🚨")
-            crawl_depth = st.slider("Max Crawl Depth", 0, 10, 2, key="crawl_depth_slider",
-                                   help="Maximum depth to crawl (0 = only start page, 10 = very deep)")
-            crawl_pages = st.slider("Max Pages to Crawl", 1, 1000, 50, key="crawl_pages_slider",
-                                   help="Maximum number of pages to crawl (1000 max)")
+            crawl_depth = st.slider("Max Crawl Depth", 0, 5, 2, key="crawl_depth_slider")
+            crawl_pages = st.slider("Max Pages to Crawl", 1, 300, 50, key="crawl_pages_slider")
         
         st.markdown("---")
         if st.button("🗑️ Clear All Results & Reset Filters", use_container_width=True, key="clear_all_button"):
-            st.session_state.results = []
-            st.session_state.processed_links_in_session = set()
+            st.session_state.results, st.session_state.processed_links_in_session = [], set()
             st.session_state.styled_table_name_keywords = ""
             st.session_state.styled_table_current_limit_value = 50
-            st.session_state.adv_filter_status = ["Active"]  # Reset to Active filter
+            st.session_state.adv_filter_status = ["Active"]
             st.session_state.adv_filter_name_keywords = ""
-            st.session_state.current_action_scraped_links = set()
-            st.session_state.validation_in_progress = False
-            st.session_state.validation_progress = 0
-            st.session_state.validation_total = 0
-            st.session_state.validation_completed = 0
-            st.session_state.crawl_in_progress = False
-            st.success("Results & filters cleared!")
-            st.rerun()
+            st.session_state.show_html_table = False
+            st.session_state.show_csv_preview = False
+            st.cache_data.clear(); st.success("Results & filters cleared!"); st.rerun()
 
     # Action Zone
+    current_action_scraped_links = set()
     st.subheader(f"🚀 Action Zone: {input_method}")
 
     try:
         if input_method == "Search and Scrape from Google":
             query = st.text_input("Search Query:", placeholder="e.g., Islamic WhatsApp group", key="gs_query_input")
             if st.button("Search, Scrape & Validate", use_container_width=True, key="gs_button"):
-                if query: 
-                    st.session_state.current_action_scraped_links = set(google_search_and_scrape(query, gs_top_n))
-                else: 
-                    st.warning("Please enter a search query.")
+                if query: current_action_scraped_links.update(google_search_and_scrape(query, gs_top_n))
+                else: st.warning("Please enter a search query.")
         
         elif input_method == "Search & Scrape from Google (Bulk via Excel)":
             file = st.file_uploader("Upload Excel (keywords in 1st col)", type=["xlsx"], key="gs_bulk_excel_upload")
@@ -500,38 +479,29 @@ def main():
                     for i, kw in enumerate(keywords):
                         stat_b.text(f"Keyword: '{kw}' ({i+1}/{len(keywords)}). Total links: {total_l}")
                         links_from_kw = google_search_and_scrape(kw, gs_top_n)
-                        st.session_state.current_action_scraped_links.update(links_from_kw)
-                        total_l = len(st.session_state.current_action_scraped_links)
+                        current_action_scraped_links.update(links_from_kw)
+                        total_l = len(current_action_scraped_links)
                         prog_b.progress((i+1)/len(keywords))
                     stat_b.success(f"Bulk done. Found {total_l} links.")
-                else: 
-                    st.warning("No valid keywords in Excel.")
+                else: st.warning("No valid keywords in Excel.")
 
         elif input_method == "Scrape from Specific Webpage URL":
             url = st.text_input("Webpage URL:", placeholder="https://example.com/page", key="specific_url_input")
             if st.button("Scrape Page & Validate", use_container_width=True, key="specific_url_button"):
                 if url and (url.startswith("http://") or url.startswith("https://")):
                     with st.spinner(f"Scraping {url}..."):
-                        st.session_state.current_action_scraped_links = set(scrape_whatsapp_links_from_page(url))
-                    st.success(f"Scraping done. Found {len(st.session_state.current_action_scraped_links)} links.")
-                else: 
-                    st.warning("Please enter a valid URL.")
+                        current_action_scraped_links.update(scrape_whatsapp_links_from_page(url))
+                    st.success(f"Scraping done. Found {len(current_action_scraped_links)} links.")
+                else: st.warning("Please enter a valid URL.")
 
         elif input_method == "Scrape from Entire Website (Extensive Crawl)":
             domain = st.text_input("Base Domain URL:", placeholder="example.com", key="crawl_domain_input")
             if st.button("Crawl & Scrape", use_container_width=True, key="crawl_button"):
                 if domain:
                     st.info("Starting crawl. Progress in sidebar.")
-                    st.session_state.crawl_in_progress = True
-                    try:
-                        st.session_state.current_action_scraped_links = set(crawl_website(domain, crawl_depth, crawl_pages))
-                        st.session_state.crawl_in_progress = False
-                    except Exception as e:
-                        st.error(f"Crawl failed: {str(e)}")
-                        st.session_state.crawl_in_progress = False
-                        traceback.print_exc()
-                else: 
-                    st.warning("Please enter a domain.")
+                    current_action_scraped_links.update(crawl_website(domain, crawl_depth, crawl_pages))
+                    st.success(f"Crawl done. Found {len(current_action_scraped_links)} links.")
+                else: st.warning("Please enter a domain.")
 
         elif input_method == "Enter Links Manually (for Validation)":
             text = st.text_area("WhatsApp Links (one per line):", height=200, key="manual_links_area")
@@ -539,11 +509,9 @@ def main():
                 links = [line.strip() for line in text.split('\n') if line.strip()]
                 if links:
                     valid_links = {l for l in links if l.startswith(WHATSAPP_DOMAIN)}
-                    if len(valid_links) < len(links): 
-                        st.warning(f"Skipped {len(links)-len(valid_links)} non-WhatsApp links.")
-                    st.session_state.current_action_scraped_links = valid_links
-                else: 
-                    st.warning("Please enter links.")
+                    if len(valid_links) < len(links): st.warning(f"Skipped {len(links)-len(valid_links)} non-WhatsApp links.")
+                    current_action_scraped_links.update(valid_links)
+                else: st.warning("Please enter links.")
 
         elif input_method == "Upload Link File (TXT/CSV/Excel)":
             file = st.file_uploader("Upload TXT, CSV (links) or Excel (keywords)", type=["txt", "csv", "xlsx"], key="upload_file_input")
@@ -557,136 +525,91 @@ def main():
                         for i, kw in enumerate(keywords):
                             stat_e.text(f"Keyword: {kw} ({i+1}/{len(keywords)}). Links: {total_le}")
                             links_from_kw = google_search_and_scrape(kw, gs_top_n)
-                            st.session_state.current_action_scraped_links.update(links_from_kw)
-                            total_le = len(st.session_state.current_action_scraped_links)
+                            current_action_scraped_links.update(links_from_kw)
+                            total_le = len(current_action_scraped_links)
                             prog_e.progress((i+1)/len(keywords))
                         stat_e.success(f"Excel processing done. Found {total_le} links.")
-                    else: 
-                        st.warning("No keywords in Excel.")
+                    else: st.warning("No keywords in Excel.")
                 elif file.name.endswith(('.txt', '.csv')):
                     st.info("Loading links from TXT/CSV for validation...")
                     links = load_links_from_file(file)
                     if links:
                         valid_links = {l for l in links if l.startswith(WHATSAPP_DOMAIN)}
-                        if len(valid_links) < len(links): 
-                            st.warning(f"Skipped {len(links)-len(valid_links)} non-WhatsApp links.")
-                        st.session_state.current_action_scraped_links = valid_links
-                    else: 
-                        st.warning("No links in file.")
-                else: 
-                    st.warning("Unsupported file. Use .txt, .csv, or .xlsx.")
-    except Exception as e: 
-        st.error(f"Input/Scraping Error: {e}", icon="💥")
-        traceback.print_exc()
+                        if len(valid_links) < len(links): st.warning(f"Skipped {len(links)-len(valid_links)} non-WhatsApp links.")
+                        current_action_scraped_links.update(valid_links)
+                    else: st.warning("No links in file.")
+                else: st.warning("Unsupported file. Use .txt, .csv, or .xlsx.")
+    except Exception as e: st.error(f"Input/Scraping Error: {e}", icon="💥")
 
     # Validation
-    if st.session_state.current_action_scraped_links:
-        links_to_validate_now = list(st.session_state.current_action_scraped_links - st.session_state.processed_links_in_session)
+    links_to_validate_now = list(current_action_scraped_links - st.session_state.processed_links_in_session)
+    if links_to_validate_now:
+        st.success(f"Found {len(current_action_scraped_links)} links. Validating {len(links_to_validate_now)} new links...")
+        prog_val, stat_val = st.progress(0), st.empty()
+        new_results_this_run = []
+        with ThreadPoolExecutor(max_workers=MAX_VALIDATION_WORKERS) as executor:
+            future_to_link = {executor.submit(validate_link, link): link for link in links_to_validate_now}
+            for i, future in enumerate(as_completed(future_to_link)):
+                link_validated = future_to_link[future]
+                try:
+                    result_validated = future.result()
+                    new_results_this_run.append(result_validated)
+                    parsed_url_val = urlparse(link_validated)
+                    normalized_link_val = f"{parsed_url_val.scheme}://{parsed_url_val.netloc}{parsed_url_val.path}"
+                    st.session_state.processed_links_in_session.add(normalized_link_val)
+                except Exception as val_exc:
+                    st.warning(f"Error validating {link_validated[:40]}...: {val_exc}", icon="⚠️")
+                    parsed_url_val_err = urlparse(link_validated)
+                    normalized_link_val_err = f"{parsed_url_val_err.scheme}://{parsed_url_val_err.netloc}{parsed_url_val_err.path}"
+                    st.session_state.processed_links_in_session.add(normalized_link_val_err)
+                    new_results_this_run.append({"Group Name": "Validation Error", "Group Link": link_validated, "Logo URL": "", "Status": f"Validation Failed: {type(val_exc).__name__}"})
+                prog_val.progress((i+1)/len(links_to_validate_now))
+                stat_val.text(f"Validated {i+1}/{len(links_to_validate_now)} links")
         
-        if links_to_validate_now:
-            st.session_state.validation_in_progress = True
-            st.session_state.validation_total = len(links_to_validate_now)
-            st.session_state.validation_completed = 0
-            
-            st.success(f"Found {len(st.session_state.current_action_scraped_links)} links. Validating {st.session_state.validation_total} new links...")
-            
-            # Create progress containers
-            progress_container = st.container()
-            progress_bar = progress_container.progress(0)
-            status_text = st.empty()
-            
-            # Run validation in a way that preserves state
-            try:
-                with ThreadPoolExecutor(max_workers=MAX_VALIDATION_WORKERS) as executor:
-                    future_to_link = {executor.submit(validate_link, link): link for link in links_to_validate_now}
-                    
-                    for i, future in enumerate(as_completed(future_to_link)):
-                        link_validated = future_to_link[future]
-                        try:
-                            result_validated = future.result()
-                            st.session_state.results.append(result_validated)
-                            
-                            try:
-                                parsed_url_val = urlparse(link_validated)
-                                normalized_link_val = f"{parsed_url_val.scheme}://{parsed_url_val.netloc}{parsed_url_val.path}"
-                            except:
-                                normalized_link_val = link_validated
-                                
-                            st.session_state.processed_links_in_session.add(normalized_link_val)
-                            
-                        except Exception as val_exc:
-                            st.warning(f"Error validating {link_validated[:40]}...: {val_exc}", icon="⚠️")
-                            try:
-                                parsed_url_val_err = urlparse(link_validated)
-                                normalized_link_val_err = f"{parsed_url_val_err.scheme}://{parsed_url_val_err.netloc}{parsed_url_val_err.path}"
-                            except:
-                                normalized_link_val_err = link_validated
-                            st.session_state.processed_links_in_session.add(normalized_link_val_err)
-                            st.session_state.results.append({
-                                "Group Name": "Validation Error", 
-                                "Group Link": link_validated, 
-                                "Logo URL": "", 
-                                "Status": f"Validation Failed: {type(val_exc).__name__}"
-                            })
-                        
-                        # Update progress
-                        st.session_state.validation_completed = i + 1
-                        progress_percent = st.session_state.validation_completed / st.session_state.validation_total
-                        progress_bar.progress(progress_percent)
-                        status_text.text(f"Validated {st.session_state.validation_completed}/{st.session_state.validation_total} links")
-                
-                status_text.success(f"Validation complete for {st.session_state.validation_total} new links!")
-                st.session_state.validation_in_progress = False
-                st.session_state.current_action_scraped_links = set()
-                
-            except Exception as e:
-                st.error(f"Validation process failed: {str(e)}", icon="❌")
-                st.session_state.validation_in_progress = False
-                traceback.print_exc()
-                
-        elif st.session_state.current_action_scraped_links and not links_to_validate_now:
-            st.info("No *new* WhatsApp links found from this action. All were previously processed.")
-            st.session_state.current_action_scraped_links = set()
-
-    # Show progress if validation was interrupted
-    if st.session_state.validation_in_progress and st.session_state.validation_total > 0:
-        st.warning("Validation was interrupted. Resuming progress...")
-        progress_percent = st.session_state.validation_completed / st.session_state.validation_total
-        progress_bar = st.progress(progress_percent)
-        st.text(f"Validated {st.session_state.validation_completed}/{st.session_state.validation_total} links")
-        
-        if st.button("Continue Validation", key="continue_validation_button"):
-            # This will trigger the validation to resume on next run
-            st.rerun()
-        if st.button("Cancel Validation", key="cancel_validation_button"):
-            st.session_state.validation_in_progress = False
-            st.session_state.current_action_scraped_links = set()
-            st.info("Validation canceled.")
-            st.rerun()
+        if new_results_this_run:
+            st.session_state.results.extend(new_results_this_run)
+        stat_val.success(f"Validation complete for {len(links_to_validate_now)} new links!")
+    elif current_action_scraped_links and not links_to_validate_now:
+        st.info("No *new* WhatsApp links found from this action. All were previously processed.")
 
     # Results Display
     if 'results' in st.session_state and st.session_state.results:
-        try:
-            # Create DataFrame from results
-            unique_results_df = pd.DataFrame(st.session_state.results).drop_duplicates(subset=['Group Link'], keep='first')
-            st.session_state.results = unique_results_df.to_dict('records')
-            df_display_master = unique_results_df.reset_index(drop=True)
+        unique_results_df = pd.DataFrame(st.session_state.results).drop_duplicates(subset=['Group Link'], keep='first')
+        st.session_state.results = unique_results_df.to_dict('records')
+        df_display_master = unique_results_df.reset_index(drop=True)
 
-            condition_expired = (df_display_master['Status'].str.startswith('Expired')) | (df_display_master['Status'] == 'Expire')
-            active_df_all_master = df_display_master[df_display_master['Status'] == 'Active'].copy()
-            expired_df_master = df_display_master[condition_expired].copy()
-            error_df_master = df_display_master[~condition_expired & (df_display_master['Status'] != 'Active')].copy()
+        # Updated status handling to include "Expire"
+        condition_expired = (df_display_master['Status'].str.startswith('Expired')) | (df_display_master['Status'] == 'Expire')
+        active_df_all_master = df_display_master[df_display_master['Status'] == 'Active'].copy()
+        expired_df_master = df_display_master[condition_expired].copy()
+        error_df_master = df_display_master[~condition_expired & (df_display_master['Status'] != 'Active')].copy()
 
-            st.subheader("📊 Results Summary")
-            col1, col2, col3, col4 = st.columns(4)
-            col1.markdown(f'<div class="metric-card">Total Processed<br><div class="metric-value">{len(df_display_master)}</div></div>', unsafe_allow_html=True)
-            col2.markdown(f'<div class="metric-card">Active Links<br><div class="metric-value">{len(active_df_all_master)}</div></div>', unsafe_allow_html=True)
-            col3.markdown(f'<div class="metric-card">Expired/Expire Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
-            col4.markdown(f'<div class="metric-card">Other Status<br><div class="metric-value">{len(error_df_master)}</div></div>', unsafe_allow_html=True)
+        st.subheader("📊 Results Summary")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.markdown(f'<div class="metric-card">Total Processed<br><div class="metric-value">{len(df_display_master)}</div></div>', unsafe_allow_html=True)
+        col2.markdown(f'<div class="metric-card">Active Links<br><div class="metric-value">{len(active_df_all_master)}</div></div>', unsafe_allow_html=True)
+        col3.markdown(f'<div class="metric-card">Expired/Expire Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
+        col4.markdown(f'<div class="metric-card">Other Status<br><div class="metric-value">{len(error_df_master)}</div></div>', unsafe_allow_html=True)
 
-            # Styled Table with Filters (collapsed by default)
-            st.subheader("✨ Active Groups Display (Styled Table)")
-            with st.expander("View and Filter Active Groups", expanded=False):  # Collapsed by default
+        # Styled Table with Filters
+        st.subheader("✨ Active Groups Display")
+        
+        # HTML Table Toggle
+        st.markdown('<div class="toggle-container">', unsafe_allow_html=True)
+        st.markdown('<div class="toggle-header" onclick="toggleHtmlTable()">', unsafe_allow_html=True)
+        st.markdown(f'<span class="toggle-icon">{">" if st.session_state.show_html_table else "▼"}</span>', unsafe_allow_html=True)
+        st.markdown('<h3>Styled HTML Table</h3>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="toggle-buttons">', unsafe_allow_html=True)
+        if st.button("Show Table", key="show_html_button"):
+            st.session_state.show_html_table = True
+        if st.button("Hide Table", key="hide_html_button"):
+            st.session_state.show_html_table = False
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.session_state.show_html_table:
+            with st.expander("View and Filter Active Groups", expanded=True):
                 if not active_df_all_master.empty:
                     st.markdown('<div class="filter-container">', unsafe_allow_html=True)
                     st.markdown("#### Filter Displayed Active Groups:")
@@ -744,39 +667,53 @@ def main():
                 else:
                     st.info("No active groups found yet to display here.")
 
-            # Advanced Filtering for Downloads (collapsed by default)
-            with st.expander("🔬 Advanced Filtering for Downloads & Analysis (Optional)", expanded=False):
-                st.markdown('<div class="filter-container" style="border-style:solid;">', unsafe_allow_html=True)
-                st.markdown("#### Filter Full Dataset (for Download/Analysis):")
-                
-                all_statuses_master = sorted(list(df_display_master['Status'].unique()))
-                st.session_state.adv_filter_status = st.multiselect(
-                    "Filter by Status:", options=all_statuses_master,
-                    default=st.session_state.adv_filter_status, key="adv_status_filter_multiselect_key"
-                )
+        # Advanced Filtering for Downloads
+        with st.expander("🔬 Advanced Filtering for Downloads & Analysis", expanded=False):
+            st.markdown('<div class="filter-container" style="border-style:solid;">', unsafe_allow_html=True)
+            st.markdown("#### Filter Full Dataset (for Download/Analysis):")
+            
+            all_statuses_master = sorted(list(df_display_master['Status'].unique()))
+            st.session_state.adv_filter_status = st.multiselect(
+                "Filter by Status:", options=all_statuses_master,
+                default=st.session_state.adv_filter_status, key="adv_status_filter_multiselect_key"
+            )
 
-                st.session_state.adv_filter_name_keywords = st.text_input(
-                    "Filter by Group Name Keywords (comma-separated):", value=st.session_state.adv_filter_name_keywords,
-                    key="adv_name_keyword_filter_input_key", placeholder="e.g., news, jobs, global",
-                    help="Applies to the entire dataset for download/analysis. Comma-separated."
-                ).strip()
-                st.markdown('</div>', unsafe_allow_html=True)
+            st.session_state.adv_filter_name_keywords = st.text_input(
+                "Filter by Group Name Keywords (comma-separated):", value=st.session_state.adv_filter_name_keywords,
+                key="adv_name_keyword_filter_input_key", placeholder="e.g., news, jobs, global",
+                help="Applies to the entire dataset for download/analysis. Comma-separated."
+            ).strip()
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                df_for_adv_download_or_view = df_display_master.copy()
-                adv_filters_applied = False
-                if st.session_state.adv_filter_status:
-                    df_for_adv_download_or_view = df_for_adv_download_or_view[df_for_adv_download_or_view['Status'].isin(st.session_state.adv_filter_status)]
+            df_for_adv_download_or_view = df_display_master.copy()
+            adv_filters_applied = False
+            if st.session_state.adv_filter_status:
+                df_for_adv_download_or_view = df_for_adv_download_or_view[df_for_adv_download_or_view['Status'].isin(st.session_state.adv_filter_status)]
+                adv_filters_applied = True
+            if st.session_state.adv_filter_name_keywords:
+                adv_keywords_list = [kw.strip().lower() for kw in st.session_state.adv_filter_name_keywords.split(',') if kw.strip()]
+                if adv_keywords_list:
+                    adv_regex_pattern = '|'.join(map(re.escape, adv_keywords_list))
+                    df_for_adv_download_or_view = df_for_adv_download_or_view[
+                        df_for_adv_download_or_view['Group Name'].str.lower().str.contains(adv_regex_pattern, na=False, regex=True)
+                    ]
                     adv_filters_applied = True
-                if st.session_state.adv_filter_name_keywords:
-                    adv_keywords_list = [kw.strip().lower() for kw in st.session_state.adv_filter_name_keywords.split(',') if kw.strip()]
-                    if adv_keywords_list:
-                        adv_regex_pattern = '|'.join(map(re.escape, adv_keywords_list))
-                        df_for_adv_download_or_view = df_for_adv_download_or_view[
-                            df_for_adv_download_or_view['Group Name'].str.lower().str.contains(adv_regex_pattern, na=False, regex=True)
-                        ]
-                        adv_filters_applied = True
-                
-                st.markdown(f"**Preview of Data for Download/Analysis ({'Filtered' if adv_filters_applied else 'All'} - {len(df_for_adv_download_or_view)} rows):**")
+            
+            # CSV Preview Toggle
+            st.markdown('<div class="toggle-container">', unsafe_allow_html=True)
+            st.markdown('<div class="toggle-header" onclick="toggleCsvPreview()">', unsafe_allow_html=True)
+            st.markdown(f'<span class="toggle-icon">{">" if st.session_state.show_csv_preview else "▼"}</span>', unsafe_allow_html=True)
+            st.markdown(f'<h3>Preview Data for Download ({len(df_for_adv_download_or_view)} rows)</h3>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('<div class="toggle-buttons">', unsafe_allow_html=True)
+            if st.button("Show Preview", key="show_csv_button"):
+                st.session_state.show_csv_preview = True
+            if st.button("Hide Preview", key="hide_csv_button"):
+                st.session_state.show_csv_preview = False
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            if st.session_state.show_csv_preview:
                 st.dataframe(df_for_adv_download_or_view, column_config={
                     "Group Link": st.column_config.LinkColumn("Invite Link", display_text="Join", width="medium"),
                     "Group Name": st.column_config.TextColumn("Group Name", width="large"),
@@ -784,28 +721,40 @@ def main():
                     "Status": st.column_config.TextColumn("Status", width="small")
                 }, hide_index=True, height=300, use_container_width=True)
 
-            # Downloads
-            st.subheader("📥 Download Results (CSV)")
-            dl_col1, dl_col2 = st.columns(2)
-            if not active_df_all_master.empty:
-                dl_col1.download_button("Active Groups (CSV)", active_df_all_master.to_csv(index=False).encode('utf-8'), "active_groups.csv", "text/csv", use_container_width=True, key="dl_active_csv_main_key")
-            else:
-                dl_col1.button("Active Groups (CSV)", disabled=True, use_container_width=True, help="No active groups to download.")
+        # Downloads
+        st.subheader("📥 Download Results (CSV)")
+        dl_col1, dl_col2 = st.columns(2)
+        if not active_df_all_master.empty:
+            dl_col1.download_button("Active Groups (CSV)", active_df_all_master.to_csv(index=False).encode('utf-8'), "active_groups.csv", "text/csv", use_container_width=True, key="dl_active_csv_main_key")
+        else:
+            dl_col1.button("Active Groups (CSV)", disabled=True, use_container_width=True, help="No active groups to download.")
 
-            if not df_for_adv_download_or_view.empty:
-                download_label = "All Processed Results (CSV)"
-                if adv_filters_applied: download_label = f"Filtered Processed Results (CSV - {len(df_for_adv_download_or_view)} rows)"
-                dl_col2.download_button(download_label, df_for_adv_download_or_view.to_csv(index=False).encode('utf-8'), "processed_results.csv", "text/csv", use_container_width=True, key="dl_all_or_filtered_csv_key")
-            elif not df_display_master.empty and df_for_adv_download_or_view.empty and adv_filters_applied:
-                dl_col2.button("No Results Match Advanced Filters", disabled=True, use_container_width=True)
-            else:
-                dl_col2.button("All Processed Results (CSV)", disabled=True, use_container_width=True, help="No results to download.")
-                
-        except Exception as e:
-            st.error(f"Error displaying results: {str(e)}", icon="❌")
-            traceback.print_exc()
+        if not df_for_adv_download_or_view.empty:
+            download_label = "All Processed Results (CSV)"
+            if adv_filters_applied: download_label = f"Filtered Processed Results (CSV - {len(df_for_adv_download_or_view)} rows)"
+            dl_col2.download_button(download_label, df_for_adv_download_or_view.to_csv(index=False).encode('utf-8'), "processed_results.csv", "text/csv", use_container_width=True, key="dl_all_or_filtered_csv_key")
+        elif not df_display_master.empty and df_for_adv_download_or_view.empty and adv_filters_applied:
+            dl_col2.button("No Results Match Advanced Filters", disabled=True, use_container_width=True)
+        else:
+            dl_col2.button("All Processed Results (CSV)", disabled=True, use_container_width=True, help="No results to download.")
+            
     else:
         st.info("Start by searching, entering, or uploading links to see results!", icon="ℹ️")
+    
+    # JavaScript for toggles
+    st.markdown("""
+    <script>
+    function toggleHtmlTable() {
+        const event = new Event('toggle-html-table');
+        window.dispatchEvent(event);
+    }
+    
+    function toggleCsvPreview() {
+        const event = new Event('toggle-csv-preview');
+        window.dispatchEvent(event);
+    }
+    </script>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
