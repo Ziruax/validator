@@ -72,7 +72,7 @@ st.set_page_config(
 )
 
 WHATSAPP_DOMAIN = "https://chat.whatsapp.com/"
-UNNAMED_GROUP_PLACEHOLDER = "Unnamed Group"
+UNNAMED_GROUP_PLACEHOLDER = ""  # Changed to empty string
 IMAGE_PATTERN_PPS = re.compile(r'https:\/\/pps\.whatsapp\.net\/v\/t\d+\/[-\w]+\/\d+\.jpg\?')
 OG_IMAGE_PATTERN = re.compile(r'https?:\/\/[^\/\s]+\/[^\/\s]+\.(jpg|jpeg|png)(\?[^\s]*)?')
 MAX_VALIDATION_WORKERS = 8
@@ -168,6 +168,7 @@ def load_links_from_file(uploaded_file):
 
 # --- Core Logic Functions ---
 def validate_link(link):
+    # Initialize with empty group name
     result = {"Group Name": UNNAMED_GROUP_PLACEHOLDER, "Group Link": link, "Logo URL": "", "Status": "Error"}
     try:
         response = requests.get(link, headers=get_random_headers_general(), timeout=20, allow_redirects=True)
@@ -215,11 +216,22 @@ def validate_link(link):
         elif result["Status"] == "Expired" and (group_name_found or logo_found):
             if soup.find('a', attrs={'id': 'action-button', 'href': link}):
                 result["Status"] = "Active"
+        
+        # New validation rule: Active status requires valid group name
+        if result["Status"] == "Active" and not result["Group Name"].strip():
+            result["Status"] = "Expire"
+        # Groups without valid names are marked "Expire"
+        elif not result["Group Name"].strip():
+            result["Status"] = "Expire"
 
     except requests.exceptions.Timeout: result["Status"] = "Timeout Error"
     except requests.exceptions.ConnectionError: result["Status"] = "Connection Error"
     except requests.exceptions.RequestException as e: result["Status"] = f"Network Error ({type(e).__name__})"
-    except Exception as e: result["Status"] = f"Parsing Error ({type(e).__name__})"
+    except Exception as e: 
+        result["Status"] = f"Parsing Error ({type(e).__name__})"
+        # Apply rule after exception
+        if not result["Group Name"].strip():
+            result["Status"] = "Expire"
     return result
 
 def scrape_whatsapp_links_from_page(url, session=None):
@@ -554,15 +566,17 @@ def main():
         st.session_state.results = unique_results_df.to_dict('records')
         df_display_master = unique_results_df.reset_index(drop=True)
 
-        active_df_all_master = df_display_master[df_display_master['Status'].str.contains('Active', na=False)].copy()
-        expired_df_master = df_display_master[df_display_master['Status'] == 'Expired'].copy()
-        error_df_master = df_display_master[~df_display_master['Status'].str.contains('Active', na=False) & (df_display_master['Status'] != 'Expired')].copy()
+        # Updated status handling to include "Expire"
+        condition_expired = (df_display_master['Status'].str.startswith('Expired')) | (df_display_master['Status'] == 'Expire')
+        active_df_all_master = df_display_master[df_display_master['Status'] == 'Active'].copy()
+        expired_df_master = df_display_master[condition_expired].copy()
+        error_df_master = df_display_master[~condition_expired & (df_display_master['Status'] != 'Active')].copy()
 
         st.subheader("📊 Results Summary")
         col1, col2, col3, col4 = st.columns(4)
         col1.markdown(f'<div class="metric-card">Total Processed<br><div class="metric-value">{len(df_display_master)}</div></div>', unsafe_allow_html=True)
         col2.markdown(f'<div class="metric-card">Active Links<br><div class="metric-value">{len(active_df_all_master)}</div></div>', unsafe_allow_html=True)
-        col3.markdown(f'<div class="metric-card">Expired Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
+        col3.markdown(f'<div class="metric-card">Expired/Expire Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
         col4.markdown(f'<div class="metric-card">Other Status<br><div class="metric-value">{len(error_df_master)}</div></div>', unsafe_allow_html=True)
 
         # Styled Table with Filters
@@ -677,7 +691,7 @@ def main():
             download_label = "All Processed Results (CSV)"
             if adv_filters_applied: download_label = f"Filtered Processed Results (CSV - {len(df_for_adv_download_or_view)} rows)"
             dl_col2.download_button(download_label, df_for_adv_download_or_view.to_csv(index=False).encode('utf-8'), "processed_results.csv", "text/csv", use_container_width=True, key="dl_all_or_filtered_csv_key")
-        elif not df_display_master.empty() and df_for_adv_download_or_view.empty() and adv_filters_applied:
+        elif not df_display_master.empty and df_for_adv_download_or_view.empty and adv_filters_applied:
             dl_col2.button("No Results Match Advanced Filters", disabled=True, use_container_width=True)
         else:
             dl_col2.button("All Processed Results (CSV)", disabled=True, use_container_width=True, help="No results to download.")
