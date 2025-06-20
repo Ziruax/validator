@@ -72,7 +72,7 @@ st.set_page_config(
 )
 
 WHATSAPP_DOMAIN = "https://chat.whatsapp.com/"
-UNNAMED_GROUP_PLACEHOLDER = ""  # Changed to empty string
+UNNAMED_GROUP_PLACEHOLDER = ""
 IMAGE_PATTERN_PPS = re.compile(r'https:\/\/pps\.whatsapp\.net\/v\/t\d+\/[-\w]+\/\d+\.jpg\?')
 OG_IMAGE_PATTERN = re.compile(r'https?:\/\/[^\/\s]+\/[^\/\s]+\.(jpg|jpeg|png)(\?[^\s]*)?')
 MAX_VALIDATION_WORKERS = 8
@@ -115,6 +115,13 @@ h4 { color: #259952; margin-top:10px; margin-bottom:10px; border-left: 3px solid
 .group-logo-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto; border: 2px solid #F0F0F0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .join-button { display: inline-block; background-color: #25D366; color: #FFFFFF !important; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 500; text-align: center; white-space: nowrap; font-size: 0.85em; transition: background-color 0.2s ease, transform 0.1s ease; }
 .join-button:hover { background-color: #1DB954; color: #FFFFFF !important; text-decoration: none; transform: translateY(-1px); }
+
+/* Expand/Collapse Toggle Styles */
+.toggle-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.toggle-header { display: flex; align-items: center; cursor: pointer; }
+.toggle-icon { margin-right: 8px; font-size: 1.2em; transition: transform 0.3s; }
+.toggle-icon.collapsed { transform: rotate(-90deg); }
+.toggle-buttons { display: flex; gap: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -168,7 +175,6 @@ def load_links_from_file(uploaded_file):
 
 # --- Core Logic Functions ---
 def validate_link(link):
-    # Initialize with empty group name
     result = {"Group Name": UNNAMED_GROUP_PLACEHOLDER, "Group Link": link, "Logo URL": "", "Status": "Error"}
     try:
         response = requests.get(link, headers=get_random_headers_general(), timeout=20, allow_redirects=True)
@@ -401,8 +407,12 @@ def main():
     if 'processed_links_in_session' not in st.session_state: st.session_state.processed_links_in_session = set()
     if 'styled_table_name_keywords' not in st.session_state: st.session_state.styled_table_name_keywords = ""
     if 'styled_table_current_limit_value' not in st.session_state: st.session_state.styled_table_current_limit_value = 50
-    if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = []
+    # Set default filter to Active
+    if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = ["Active"]
     if 'adv_filter_name_keywords' not in st.session_state: st.session_state.adv_filter_name_keywords = ""
+    # State for toggles
+    if 'show_html_table' not in st.session_state: st.session_state.show_html_table = False
+    if 'show_csv_preview' not in st.session_state: st.session_state.show_csv_preview = False
 
     # Ensure processed_links_in_session is a set and populate it
     if not isinstance(st.session_state.processed_links_in_session, set):
@@ -441,8 +451,10 @@ def main():
             st.session_state.results, st.session_state.processed_links_in_session = [], set()
             st.session_state.styled_table_name_keywords = ""
             st.session_state.styled_table_current_limit_value = 50
-            st.session_state.adv_filter_status = []
+            st.session_state.adv_filter_status = ["Active"]
             st.session_state.adv_filter_name_keywords = ""
+            st.session_state.show_html_table = False
+            st.session_state.show_csv_preview = False
             st.cache_data.clear(); st.success("Results & filters cleared!"); st.rerun()
 
     # Action Zone
@@ -579,89 +591,96 @@ def main():
         col3.markdown(f'<div class="metric-card">Expired/Expire Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
         col4.markdown(f'<div class="metric-card">Other Status<br><div class="metric-value">{len(error_df_master)}</div></div>', unsafe_allow_html=True)
 
-        # Styled Table with Filters - Collapsed by default
+        # Styled Table with Filters
         st.subheader("✨ Active Groups Display")
-        with st.expander("View and Filter Active Groups (Styled Table)", expanded=False):
-            if not active_df_all_master.empty:
-                st.markdown('<div class="filter-container">', unsafe_allow_html=True)
-                st.markdown("#### Filter Displayed Active Groups:")
+        
+        # HTML Table Toggle
+        st.markdown('<div class="toggle-container">', unsafe_allow_html=True)
+        st.markdown('<div class="toggle-header" onclick="toggleHtmlTable()">', unsafe_allow_html=True)
+        st.markdown(f'<span class="toggle-icon">{">" if st.session_state.show_html_table else "▼"}</span>', unsafe_allow_html=True)
+        st.markdown('<h3>Styled HTML Table</h3>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="toggle-buttons">', unsafe_allow_html=True)
+        if st.button("Show Table", key="show_html_button"):
+            st.session_state.show_html_table = True
+        if st.button("Hide Table", key="hide_html_button"):
+            st.session_state.show_html_table = False
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.session_state.show_html_table:
+            with st.expander("View and Filter Active Groups", expanded=True):
+                if not active_df_all_master.empty:
+                    st.markdown('<div class="filter-container">', unsafe_allow_html=True)
+                    st.markdown("#### Filter Displayed Active Groups:")
 
-                with st.form("styled_table_filters_form"):
-                    name_keywords_input = st.text_input(
-                        "Filter by Group Name Keywords (comma-separated):",
-                        value=st.session_state.styled_table_name_keywords,
-                        placeholder="e.g., study, fun, tech",
-                        help="Enter keywords (comma-separated). Shows groups matching ANY keyword."
-                    ).strip()
-                    limit_input = st.number_input(
-                        "Max Groups to Display in Table:",
-                        min_value=1,
-                        max_value=1000,
-                        value=st.session_state.styled_table_current_limit_value,
-                        step=10,
-                        help="Set the maximum number of groups to display in the table."
-                    )
-                    apply_filters = st.form_submit_button("Apply Filters")
+                    with st.form("styled_table_filters_form"):
+                        name_keywords_input = st.text_input(
+                            "Filter by Group Name Keywords (comma-separated):",
+                            value=st.session_state.styled_table_name_keywords,
+                            placeholder="e.g., study, fun, tech",
+                            help="Enter keywords (comma-separated). Shows groups matching ANY keyword."
+                        ).strip()
+                        limit_input = st.number_input(
+                            "Max Groups to Display in Table:",
+                            min_value=1,
+                            max_value=1000,
+                            value=st.session_state.styled_table_current_limit_value,
+                            step=10,
+                            help="Set the maximum number of groups to display in the table."
+                        )
+                        apply_filters = st.form_submit_button("Apply Filters")
 
-                if apply_filters:
-                    st.session_state.styled_table_name_keywords = name_keywords_input
-                    st.session_state.styled_table_current_limit_value = limit_input
+                    if apply_filters:
+                        st.session_state.styled_table_name_keywords = name_keywords_input
+                        st.session_state.styled_table_current_limit_value = limit_input
 
-                if st.button("Reset Filters", key="reset_styled_table_filters_button"):
-                    st.session_state.styled_table_name_keywords = ""
-                    st.session_state.styled_table_current_limit_value = 50
-                    st.rerun()
+                    if st.button("Reset Filters", key="reset_styled_table_filters_button"):
+                        st.session_state.styled_table_name_keywords = ""
+                        st.session_state.styled_table_current_limit_value = 50
+                        st.rerun()
 
-                # Filter the dataframe
-                active_df_for_styled_table = active_df_all_master.copy()
-                if st.session_state.styled_table_name_keywords:
-                    keywords_list = [kw.strip().lower() for kw in st.session_state.styled_table_name_keywords.split(',') if kw.strip()]
-                    if keywords_list:
-                        regex_pattern = '|'.join(map(re.escape, keywords_list))
-                        active_df_for_styled_table = active_df_for_styled_table[
-                            active_df_for_styled_table['Group Name'].str.lower().str.contains(regex_pattern, na=False, regex=True)
-                        ]
+                    # Filter the dataframe
+                    active_df_for_styled_table = active_df_all_master.copy()
+                    if st.session_state.styled_table_name_keywords:
+                        keywords_list = [kw.strip().lower() for kw in st.session_state.styled_table_name_keywords.split(',') if kw.strip()]
+                        if keywords_list:
+                            regex_pattern = '|'.join(map(re.escape, keywords_list))
+                            active_df_for_styled_table = active_df_for_styled_table[
+                                active_df_for_styled_table['Group Name'].str.lower().str.contains(regex_pattern, na=False, regex=True)
+                            ]
 
-                num_matching = len(active_df_for_styled_table)
-                num_displayed = min(num_matching, st.session_state.styled_table_current_limit_value)
-                active_df_for_styled_table_final = active_df_for_styled_table.head(num_displayed)
+                    num_matching = len(active_df_for_styled_table)
+                    num_displayed = min(num_matching, st.session_state.styled_table_current_limit_value)
+                    active_df_for_styled_table_final = active_df_for_styled_table.head(num_displayed)
 
-                if num_matching > 0:
-                    st.write(f"Showing {num_displayed} out of {num_matching} matching active groups.")
+                    if num_matching > 0:
+                        st.write(f"Showing {num_displayed} out of {num_matching} matching active groups.")
+                    else:
+                        st.write("No groups match the current filters.")
+
+                    html_out = generate_styled_html_table(active_df_for_styled_table_final)
+                    st.markdown(html_out, unsafe_allow_html=True)
+                    st.markdown("---")
+                    st.text_area("Copy Raw HTML Code (above table):", value=html_out, height=150, key="styled_html_export_area_key", help="Ctrl+A, Ctrl+C")
+                    st.markdown('</div>', unsafe_allow_html=True) # Close filter-container
                 else:
-                    st.write("No groups match the current filters.")
+                    st.info("No active groups found yet to display here.")
 
-                html_out = generate_styled_html_table(active_df_for_styled_table_final)
-                st.markdown(html_out, unsafe_allow_html=True)
-                st.markdown("---")
-                st.text_area("Copy Raw HTML Code (above table):", value=html_out, height=150, key="styled_html_export_area_key", help="Ctrl+A, Ctrl+C")
-                st.markdown('</div>', unsafe_allow_html=True) # Close filter-container
-            else:
-                st.info("No active groups found yet to display here.")
-
-        # Advanced Filtering for Downloads - Set Active as default
+        # Advanced Filtering for Downloads
         with st.expander("🔬 Advanced Filtering for Downloads & Analysis", expanded=False):
             st.markdown('<div class="filter-container" style="border-style:solid;">', unsafe_allow_html=True)
             st.markdown("#### Filter Full Dataset (for Download/Analysis):")
             
             all_statuses_master = sorted(list(df_display_master['Status'].unique()))
-            
-            # Set Active as default if available
-            if not st.session_state.adv_filter_status and "Active" in all_statuses_master:
-                st.session_state.adv_filter_status = ["Active"]
-            
             st.session_state.adv_filter_status = st.multiselect(
-                "Filter by Status:", 
-                options=all_statuses_master,
-                default=st.session_state.adv_filter_status,
-                key="adv_status_filter_multiselect_key"
+                "Filter by Status:", options=all_statuses_master,
+                default=st.session_state.adv_filter_status, key="adv_status_filter_multiselect_key"
             )
 
             st.session_state.adv_filter_name_keywords = st.text_input(
-                "Filter by Group Name Keywords (comma-separated):", 
-                value=st.session_state.adv_filter_name_keywords,
-                key="adv_name_keyword_filter_input_key", 
-                placeholder="e.g., news, jobs, global",
+                "Filter by Group Name Keywords (comma-separated):", value=st.session_state.adv_filter_name_keywords,
+                key="adv_name_keyword_filter_input_key", placeholder="e.g., news, jobs, global",
                 help="Applies to the entire dataset for download/analysis. Comma-separated."
             ).strip()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -680,13 +699,27 @@ def main():
                     ]
                     adv_filters_applied = True
             
-            st.markdown(f"**Preview of Data for Download/Analysis ({'Filtered' if adv_filters_applied else 'All'} - {len(df_for_adv_download_or_view)} rows):**")
-            st.dataframe(df_for_adv_download_or_view, column_config={
-                "Group Link": st.column_config.LinkColumn("Invite Link", display_text="Join", width="medium"),
-                "Group Name": st.column_config.TextColumn("Group Name", width="large"),
-                "Logo URL": st.column_config.LinkColumn("Logo URL", display_text="View", width="small"),
-                "Status": st.column_config.TextColumn("Status", width="small")
-            }, hide_index=True, height=300, use_container_width=True)
+            # CSV Preview Toggle
+            st.markdown('<div class="toggle-container">', unsafe_allow_html=True)
+            st.markdown('<div class="toggle-header" onclick="toggleCsvPreview()">', unsafe_allow_html=True)
+            st.markdown(f'<span class="toggle-icon">{">" if st.session_state.show_csv_preview else "▼"}</span>', unsafe_allow_html=True)
+            st.markdown(f'<h3>Preview Data for Download ({len(df_for_adv_download_or_view)} rows)</h3>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('<div class="toggle-buttons">', unsafe_allow_html=True)
+            if st.button("Show Preview", key="show_csv_button"):
+                st.session_state.show_csv_preview = True
+            if st.button("Hide Preview", key="hide_csv_button"):
+                st.session_state.show_csv_preview = False
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            if st.session_state.show_csv_preview:
+                st.dataframe(df_for_adv_download_or_view, column_config={
+                    "Group Link": st.column_config.LinkColumn("Invite Link", display_text="Join", width="medium"),
+                    "Group Name": st.column_config.TextColumn("Group Name", width="large"),
+                    "Logo URL": st.column_config.LinkColumn("Logo URL", display_text="View", width="small"),
+                    "Status": st.column_config.TextColumn("Status", width="small")
+                }, hide_index=True, height=300, use_container_width=True)
 
         # Downloads
         st.subheader("📥 Download Results (CSV)")
@@ -707,6 +740,21 @@ def main():
             
     else:
         st.info("Start by searching, entering, or uploading links to see results!", icon="ℹ️")
+    
+    # JavaScript for toggles
+    st.markdown("""
+    <script>
+    function toggleHtmlTable() {
+        const event = new Event('toggle-html-table');
+        window.dispatchEvent(event);
+    }
+    
+    function toggleCsvPreview() {
+        const event = new Event('toggle-csv-preview');
+        window.dispatchEvent(event);
+    }
+    </script>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
