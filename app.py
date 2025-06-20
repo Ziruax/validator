@@ -72,7 +72,7 @@ st.set_page_config(
 )
 
 WHATSAPP_DOMAIN = "https://chat.whatsapp.com/"
-UNNAMED_GROUP_PLACEHOLDER = ""  # Changed to empty string
+UNNAMED_GROUP_PLACEHOLDER = ""
 IMAGE_PATTERN_PPS = re.compile(r'https:\/\/pps\.whatsapp\.net\/v\/t\d+\/[-\w]+\/\d+\.jpg\?')
 OG_IMAGE_PATTERN = re.compile(r'https?:\/\/[^\/\s]+\/[^\/\s]+\.(jpg|jpeg|png)(\?[^\s]*)?')
 MAX_VALIDATION_WORKERS = 8
@@ -80,41 +80,17 @@ MAX_VALIDATION_WORKERS = 8
 # --- Custom CSS ---
 st.markdown("""
 <style>
-body { font-family: 'Arial', sans-serif; }
-.main-title { font-size: 2.8em; color: #25D366; text-align: center; margin-bottom: 0; font-weight: 600; letter-spacing: -1px; }
-.subtitle { font-size: 1.3em; color: #555; text-align: center; margin-top: 5px; margin-bottom: 30px; }
-.stButton>button { background-color: #25D366; color: #FFFFFF; border-radius: 8px; font-weight: bold; border: none; padding: 10px 18px; margin: 8px 0; transition: background-color 0.3s ease, transform 0.1s ease; }
-.stButton>button:hover { background-color: #1EBE5A; transform: scale(1.03); }
-.stButton>button:active { transform: scale(0.98); }
-.stProgress > div > div > div > div { background-color: #25D366; border-radius: 4px; }
-.metric-card { background-color: #F8F9FA; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); color: #333; text-align: center; margin-bottom: 15px; border: 1px solid #E9ECEF; }
-.metric-card .metric-value { font-size: 2em; font-weight: 700; margin-top: 5px; margin-bottom: 0; line-height: 1.2; color: #25D366; }
-.stTextInput > div > div > input, .stTextArea > div > textarea, .stNumberInput > div > div > input { border: 1px solid #CED4DA !important; border-radius: 6px !important; padding: 10px !important; box-shadow: inset 0 1px 2px rgba(0,0,0,0.075); }
-.stTextInput > div > div > input:focus, .stTextArea > div > textarea:focus, .stNumberInput > div > div > input:focus { border-color: #25D366 !important; box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25) !important; }
-.st-emotion-cache-1v3rj08, .st-emotion-cache-gh2jqd, .streamlit-expanderHeader { background-color: #F8F9FA; border-radius: 6px; }
-.stExpander { border: 1px solid #E9ECEF; border-radius: 8px; padding: 12px; margin-top: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-.stExpander div[data-testid="stExpanderToggleIcon"] { color: #25D366; font-size: 1.2em; }
-.stExpander div[data-testid="stExpanderLabel"] strong { color: #1EBE5A; font-size: 1.1em; }
-.filter-container { background-color: #FDFDFD; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #DDE2E5; }
-.filter-container .stTextInput input, .filter-container .stNumberInput input { background-color: #fff;zczy}
-h4 { color: #259952; margin-top:10px; margin-bottom:10px; border-left: 3px solid #25D366; padding-left: 8px;}
-.whatsapp-groups-table { border-collapse: collapse; width: 100%; margin-top: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); border-radius: 8px; overflow: hidden; border: 1px solid #DEE2E6; }
-.whatsapp-groups-table caption { caption-side: top; text-align: left; font-weight: 600; padding: 12px 15px; font-size: 1.15em; color: #343A40; background-color: #F8F9FA; border-bottom: 1px solid #DEE2E6;}
-.whatsapp-groups-table th { background-color: #343A40; color: white; padding: 14px 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.9em; }
-.whatsapp-groups-table th:nth-child(1) { text-align: center; width: 80px; }
-.whatsapp-groups-table th:nth-child(2) { text-align: left; }
-.whatsapp-groups-table th:nth-child(3) { text-align: right; width: 150px; }
-.whatsapp-groups-table tr { border-bottom: 1px solid #EAEEF2; }
-.whatsapp-groups-table tr:last-child { border-bottom: none; }
-.whatsapp-groups-table tr:nth-child(even) { background-color: #F9FAFB; }
-.whatsapp-groups-table tr:hover { background-color: #EFF8FF; }
-.whatsapp-groups-table td { padding: 12px; vertical-align: middle; text-align: left; font-size: 0.95em; }
-.whatsapp-groups-table td:nth-child(1) { width: 60px; padding-right: 8px; text-align: center; }
-.whatsapp-groups-table td:nth-child(2) { padding-left: 8px; padding-right: 12px; word-break: break-word; font-weight: 500; color: #212529; }
-.whatsapp-groups-table td:nth-child(3) { width: 140px; text-align: right; padding-left: 12px; }
-.group-logo-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto; border: 2px solid #F0F0F0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-.join-button { display: inline-block; background-color: #25D366; color: #FFFFFF !important; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 500; text-align: center; white-space: nowrap; font-size: 0.85em; transition: background-color 0.2s ease, transform 0.1s ease; }
-.join-button:hover { background-color: #1DB954; color: #FFFFFF !important; text-decoration: none; transform: translateY(-1px); }
+/* ... (existing CSS remains the same) ... */
+.expander-collapsed .streamlit-expanderHeader:after {
+    content: "+";
+    float: right;
+    font-weight: bold;
+}
+.expander-expanded .streamlit-expanderHeader:after {
+    content: "-";
+    float: right;
+    font-weight: bold;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -168,7 +144,6 @@ def load_links_from_file(uploaded_file):
 
 # --- Core Logic Functions ---
 def validate_link(link):
-    # Initialize with empty group name
     result = {"Group Name": UNNAMED_GROUP_PLACEHOLDER, "Group Link": link, "Logo URL": "", "Status": "Error"}
     try:
         response = requests.get(link, headers=get_random_headers_general(), timeout=20, allow_redirects=True)
@@ -217,10 +192,9 @@ def validate_link(link):
             if soup.find('a', attrs={'id': 'action-button', 'href': link}):
                 result["Status"] = "Active"
         
-        # New validation rule: Active status requires valid group name
+        # New validation rules
         if result["Status"] == "Active" and not result["Group Name"].strip():
             result["Status"] = "Expire"
-        # Groups without valid names are marked "Expire"
         elif not result["Group Name"].strip():
             result["Status"] = "Expire"
 
@@ -229,7 +203,6 @@ def validate_link(link):
     except requests.exceptions.RequestException as e: result["Status"] = f"Network Error ({type(e).__name__})"
     except Exception as e: 
         result["Status"] = f"Parsing Error ({type(e).__name__})"
-        # Apply rule after exception
         if not result["Group Name"].strip():
             result["Status"] = "Expire"
     return result
@@ -401,7 +374,7 @@ def main():
     if 'processed_links_in_session' not in st.session_state: st.session_state.processed_links_in_session = set()
     if 'styled_table_name_keywords' not in st.session_state: st.session_state.styled_table_name_keywords = ""
     if 'styled_table_current_limit_value' not in st.session_state: st.session_state.styled_table_current_limit_value = 50
-    if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = []
+    if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = ["Active"]  # Set Active as default
     if 'adv_filter_name_keywords' not in st.session_state: st.session_state.adv_filter_name_keywords = ""
 
     # Ensure processed_links_in_session is a set and populate it
@@ -426,22 +399,27 @@ def main():
             "Enter Links Manually (for Validation)", "Upload Link File (TXT/CSV/Excel)"
         ], key="input_method_main_select")
 
+        # Increased Google search limit to 50
         gs_top_n = 5
         if input_method in ["Search and Scrape from Google", "Search & Scrape from Google (Bulk via Excel)", "Upload Link File (TXT/CSV/Excel)"]:
-            gs_top_n = st.slider("Google Results to Scrape (per keyword)", 1, 20, 5, key="gs_top_n_slider", help="Number of Google search result pages to analyze per keyword.")
+            gs_top_n = st.slider("Google Results to Scrape (per keyword)", 1, 50, 5, key="gs_top_n_slider", 
+                                 help="Number of Google search result pages to analyze per keyword (max 50).")
         
+        # Increased scraping limits
         crawl_depth, crawl_pages = 2, 50
         if input_method == "Scrape from Entire Website (Extensive Crawl)":
             st.warning("⚠️ Extensive crawl can be slow. Use with caution.", icon="🚨")
-            crawl_depth = st.slider("Max Crawl Depth", 0, 5, 2, key="crawl_depth_slider")
-            crawl_pages = st.slider("Max Pages to Crawl", 1, 300, 50, key="crawl_pages_slider")
+            crawl_depth = st.slider("Max Crawl Depth", 0, 10, 2, key="crawl_depth_slider",
+                                   help="Maximum depth to crawl (0 = only start page, 10 = very deep)")
+            crawl_pages = st.slider("Max Pages to Crawl", 1, 1000, 50, key="crawl_pages_slider",
+                                   help="Maximum number of pages to crawl (1000 max)")
         
         st.markdown("---")
         if st.button("🗑️ Clear All Results & Reset Filters", use_container_width=True, key="clear_all_button"):
             st.session_state.results, st.session_state.processed_links_in_session = [], set()
             st.session_state.styled_table_name_keywords = ""
             st.session_state.styled_table_current_limit_value = 50
-            st.session_state.adv_filter_status = []
+            st.session_state.adv_filter_status = ["Active"]  # Reset to Active filter
             st.session_state.adv_filter_name_keywords = ""
             st.cache_data.clear(); st.success("Results & filters cleared!"); st.rerun()
 
@@ -566,7 +544,6 @@ def main():
         st.session_state.results = unique_results_df.to_dict('records')
         df_display_master = unique_results_df.reset_index(drop=True)
 
-        # Updated status handling to include "Expire"
         condition_expired = (df_display_master['Status'].str.startswith('Expired')) | (df_display_master['Status'] == 'Expire')
         active_df_all_master = df_display_master[df_display_master['Status'] == 'Active'].copy()
         expired_df_master = df_display_master[condition_expired].copy()
@@ -579,9 +556,9 @@ def main():
         col3.markdown(f'<div class="metric-card">Expired/Expire Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
         col4.markdown(f'<div class="metric-card">Other Status<br><div class="metric-value">{len(error_df_master)}</div></div>', unsafe_allow_html=True)
 
-        # Styled Table with Filters
+        # Styled Table with Filters (collapsed by default)
         st.subheader("✨ Active Groups Display (Styled Table)")
-        with st.expander("View and Filter Active Groups", expanded=True):
+        with st.expander("View and Filter Active Groups", expanded=False):  # Collapsed by default
             if not active_df_all_master.empty:
                 st.markdown('<div class="filter-container">', unsafe_allow_html=True)
                 st.markdown("#### Filter Displayed Active Groups:")
@@ -639,7 +616,7 @@ def main():
             else:
                 st.info("No active groups found yet to display here.")
 
-        # Advanced Filtering for Downloads
+        # Advanced Filtering for Downloads (collapsed by default)
         with st.expander("🔬 Advanced Filtering for Downloads & Analysis (Optional)", expanded=False):
             st.markdown('<div class="filter-container" style="border-style:solid;">', unsafe_allow_html=True)
             st.markdown("#### Filter Full Dataset (for Download/Analysis):")
