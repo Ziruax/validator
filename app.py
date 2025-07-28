@@ -72,7 +72,7 @@ st.set_page_config(
 )
 
 WHATSAPP_DOMAIN = "https://chat.whatsapp.com/"
-UNNAMED_GROUP_PLACEHOLDER = ""  # Changed to empty string
+UNNAMED_GROUP_PLACEHOLDER = "Unnamed Group"
 IMAGE_PATTERN_PPS = re.compile(r'https:\/\/pps\.whatsapp\.net\/v\/t\d+\/[-\w]+\/\d+\.jpg\?')
 OG_IMAGE_PATTERN = re.compile(r'https?:\/\/[^\/\s]+\/[^\/\s]+\.(jpg|jpeg|png)(\?[^\s]*)?')
 MAX_VALIDATION_WORKERS = 8
@@ -168,7 +168,6 @@ def load_links_from_file(uploaded_file):
 
 # --- Core Logic Functions ---
 def validate_link(link):
-    # Initialize with empty group name
     result = {"Group Name": UNNAMED_GROUP_PLACEHOLDER, "Group Link": link, "Logo URL": "", "Status": "Error"}
     try:
         response = requests.get(link, headers=get_random_headers_general(), timeout=20, allow_redirects=True)
@@ -216,22 +215,11 @@ def validate_link(link):
         elif result["Status"] == "Expired" and (group_name_found or logo_found):
             if soup.find('a', attrs={'id': 'action-button', 'href': link}):
                 result["Status"] = "Active"
-        
-        # New validation rule: Active status requires valid group name
-        if result["Status"] == "Active" and not result["Group Name"].strip():
-            result["Status"] = "Expire"
-        # Groups without valid names are marked "Expire"
-        elif not result["Group Name"].strip():
-            result["Status"] = "Expire"
 
     except requests.exceptions.Timeout: result["Status"] = "Timeout Error"
     except requests.exceptions.ConnectionError: result["Status"] = "Connection Error"
     except requests.exceptions.RequestException as e: result["Status"] = f"Network Error ({type(e).__name__})"
-    except Exception as e: 
-        result["Status"] = f"Parsing Error ({type(e).__name__})"
-        # Apply rule after exception
-        if not result["Group Name"].strip():
-            result["Status"] = "Expire"
+    except Exception as e: result["Status"] = f"Parsing Error ({type(e).__name__})"
     return result
 
 def scrape_whatsapp_links_from_page(url, session=None):
@@ -401,12 +389,8 @@ def main():
     if 'processed_links_in_session' not in st.session_state: st.session_state.processed_links_in_session = set()
     if 'styled_table_name_keywords' not in st.session_state: st.session_state.styled_table_name_keywords = ""
     if 'styled_table_current_limit_value' not in st.session_state: st.session_state.styled_table_current_limit_value = 50
-    
-    # Set "Active" as default filter for advanced filtering
-    if 'adv_filter_status' not in st.session_state: 
-        st.session_state.adv_filter_status = ["Active"]
-    if 'adv_filter_name_keywords' not in st.session_state: 
-        st.session_state.adv_filter_name_keywords = ""
+    if 'adv_filter_status' not in st.session_state: st.session_state.adv_filter_status = []
+    if 'adv_filter_name_keywords' not in st.session_state: st.session_state.adv_filter_name_keywords = ""
 
     # Ensure processed_links_in_session is a set and populate it
     if not isinstance(st.session_state.processed_links_in_session, set):
@@ -445,7 +429,7 @@ def main():
             st.session_state.results, st.session_state.processed_links_in_session = [], set()
             st.session_state.styled_table_name_keywords = ""
             st.session_state.styled_table_current_limit_value = 50
-            st.session_state.adv_filter_status = ["Active"]  # Reset to default "Active"
+            st.session_state.adv_filter_status = []
             st.session_state.adv_filter_name_keywords = ""
             st.cache_data.clear(); st.success("Results & filters cleared!"); st.rerun()
 
@@ -570,22 +554,20 @@ def main():
         st.session_state.results = unique_results_df.to_dict('records')
         df_display_master = unique_results_df.reset_index(drop=True)
 
-        # Updated status handling to include "Expire"
-        condition_expired = (df_display_master['Status'].str.startswith('Expired')) | (df_display_master['Status'] == 'Expire')
-        active_df_all_master = df_display_master[df_display_master['Status'] == 'Active'].copy()
-        expired_df_master = df_display_master[condition_expired].copy()
-        error_df_master = df_display_master[~condition_expired & (df_display_master['Status'] != 'Active')].copy()
+        active_df_all_master = df_display_master[df_display_master['Status'].str.contains('Active', na=False)].copy()
+        expired_df_master = df_display_master[df_display_master['Status'] == 'Expired'].copy()
+        error_df_master = df_display_master[~df_display_master['Status'].str.contains('Active', na=False) & (df_display_master['Status'] != 'Expired')].copy()
 
         st.subheader("📊 Results Summary")
         col1, col2, col3, col4 = st.columns(4)
         col1.markdown(f'<div class="metric-card">Total Processed<br><div class="metric-value">{len(df_display_master)}</div></div>', unsafe_allow_html=True)
         col2.markdown(f'<div class="metric-card">Active Links<br><div class="metric-value">{len(active_df_all_master)}</div></div>', unsafe_allow_html=True)
-        col3.markdown(f'<div class="metric-card">Expired/Expire Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
+        col3.markdown(f'<div class="metric-card">Expired Links<br><div class="metric-value">{len(expired_df_master)}</div></div>', unsafe_allow_html=True)
         col4.markdown(f'<div class="metric-card">Other Status<br><div class="metric-value">{len(error_df_master)}</div></div>', unsafe_allow_html=True)
 
         # Styled Table with Filters
         st.subheader("✨ Active Groups Display (Styled Table)")
-        with st.expander("View and Filter Active Groups", expanded=False):
+        with st.expander("View and Filter Active Groups", expanded=True):
             if not active_df_all_master.empty:
                 st.markdown('<div class="filter-container">', unsafe_allow_html=True)
                 st.markdown("#### Filter Displayed Active Groups:")
@@ -649,8 +631,6 @@ def main():
             st.markdown("#### Filter Full Dataset (for Download/Analysis):")
             
             all_statuses_master = sorted(list(df_display_master['Status'].unique()))
-            
-            # Set "Active" as default filter
             st.session_state.adv_filter_status = st.multiselect(
                 "Filter by Status:", options=all_statuses_master,
                 default=st.session_state.adv_filter_status, key="adv_status_filter_multiselect_key"
@@ -697,7 +677,7 @@ def main():
             download_label = "All Processed Results (CSV)"
             if adv_filters_applied: download_label = f"Filtered Processed Results (CSV - {len(df_for_adv_download_or_view)} rows)"
             dl_col2.download_button(download_label, df_for_adv_download_or_view.to_csv(index=False).encode('utf-8'), "processed_results.csv", "text/csv", use_container_width=True, key="dl_all_or_filtered_csv_key")
-        elif not df_display_master.empty and df_for_adv_download_or_view.empty and adv_filters_applied:
+        elif not df_display_master.empty() and df_for_adv_download_or_view.empty() and adv_filters_applied:
             dl_col2.button("No Results Match Advanced Filters", disabled=True, use_container_width=True)
         else:
             dl_col2.button("All Processed Results (CSV)", disabled=True, use_container_width=True, help="No results to download.")
